@@ -41,4 +41,10 @@ v1.1.3 — full visual match: status 101 «первоначальный (При�
 QR in official esf.salyk.kg format (preview clone pixel-identical to the reference QR). The document
 is a complete clone of «Копия 6.pdf» (layout + DejaVu Sans font + all data + QR). 23 tests pass.
 
+Environment re-check 2026-07-26 (no feature changes): Docker PostgreSQL healthy,
+Alembic at head (a7d4e91c25f8), `pytest tests/ -q` → **55 passed**. Note: the suite
+has grown from the 23 recorded at v1.1.3 to 55 — tests were added after RC1 without a
+state entry. This is a content/history gap worth a dedicated reconciliation pass, not a
+wording fix. (Historical per-version counts above are left as-is: they were correct when written.)
+
 Awaiting direction.

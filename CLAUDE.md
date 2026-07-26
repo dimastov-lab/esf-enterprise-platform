@@ -80,20 +80,37 @@ After each sprint:
 7. Update TECHNICAL_DEBT.md.
 8. Stop and wait for user command.
 
-## CURRENT EXECUTION ORDER
+## CURRENT STATUS
 
-Sprint 1 — Real FastAPI skeleton  
-Sprint 2 — PostgreSQL + Docker Compose  
-Sprint 3 — SQLAlchemy models + Alembic  
-Sprint 4 — Document CRUD  
-Sprint 5 — Validation Engine  
-Sprint 6 — Snapshot Engine  
-Sprint 7 — PDF + QR generation  
-Sprint 8 — Public verification page  
-Sprint 9 — Auth + RBAC  
-Sprint 10 — Audit Log  
-Sprint 11 — Basic UI  
-Sprint 12 — Production hardening
+The original 12-sprint MVP plan is **COMPLETE**. The platform is at
+**v1.1.3 — Release Candidate 1 (1.0.0-rc1)**: MVP feature-complete and verified.
+
+**Source of truth for current state is PROJECT_STATE.md** — read it before planning.
+This section is a high-level map, not a fresh to-do list.
+
+Initial build (done):
+
+- ✅ Sprint 1 — Real FastAPI skeleton
+- ✅ Sprint 2 — PostgreSQL + Docker Compose
+- ✅ Sprint 3 — SQLAlchemy models + Alembic
+- ✅ Sprint 4 — Document CRUD
+- ✅ Sprint 5 — Validation Engine
+- ✅ Sprint 6 — Snapshot Engine
+- ✅ Sprint 7 — PDF + QR generation
+- ✅ Sprint 8 — Public verification page
+- ✅ Sprint 9 — Auth + RBAC
+- ✅ Sprint 10 — Audit Log
+- ✅ Sprint 11 — Basic UI
+- ⏳ Sprint 12 — Production hardening (partial — see TECHNICAL_DEBT.md)
+
+Post-MVP delivered (v1.1.x): audit logging + admin viewer (/admin/audit), CSRF
+protection, login rate limiting, persisted previously view-only fields, exact
+bundled DejaVu Sans font + official QR format (pixel-faithful clone).
+
+Remaining work is **post-MVP hardening only** — see TECHNICAL_DEBT.md (shared-store
+rate limit, structured logging, styled error pages, production DB secrets).
+Out of scope (require external systems): ГНС/tax-authority integration,
+ЭЦП/digital signature, legal validity.
 
 ## DEFINITION OF DONE
 
