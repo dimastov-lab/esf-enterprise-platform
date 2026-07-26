@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "esf-backend",
-      "runtimeExecutable": "/Users/dmitrijcernikov/.esf-venv/bin/uvicorn",
-      "runtimeArgs": ["app.main:app", "--app-dir", "backend", "--port", "8011"],
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "cd /Users/dmitrijcernikov/Desktop/ESF-Enterprise-Clean-Starter/backend && exec /Users/dmitrijcernikov/.esf-venv/bin/uvicorn app.main:app --port 8011 --loop asyncio --http h11"],
       "port": 8011
     }
   ]

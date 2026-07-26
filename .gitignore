@@ -27,6 +27,12 @@ logs/*
 !storage/.gitkeep
 !logs/.gitkeep
 
+# Backend runtime output — generated PDFs / QR codes (keep folders, ignore contents)
+backend/storage/pdf/*
+backend/storage/qr/*
+!backend/storage/pdf/.gitkeep
+!backend/storage/qr/.gitkeep
+
 # Personal legal / financial material — NOT part of the platform, never commit
 /ПАКЕТ_ДОКАЗАТЕЛЬСТВ*/
 /ПАКЕТ_НОТАРИУС/
