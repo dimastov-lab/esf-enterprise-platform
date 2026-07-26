@@ -1,0 +1,47 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.egg-info/
+
+# Tooling caches / artifacts
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Secrets & local env
+.env
+.env.production
+infra/nginx/certs/*.pem
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Runtime data (keep the folders, ignore contents)
+storage/*
+logs/*
+!storage/.gitkeep
+!logs/.gitkeep
+
+# Personal legal / financial material — NOT part of the platform, never commit
+/ПАКЕТ_ДОКАЗАТЕЛЬСТВ*/
+/ПАКЕТ_НОТАРИУС/
+/Доказательства_фото/
+/Материалы_потерпевшего_для_адвоката.pdf
+/Долг_Михаила_реестр.xlsx
+/РП_Комплаенс_*.xlsx
+/пост_контроль.xlsx
+/Проект_обращения_в_Банк_России.docx
+
+# Pitch deck & misc non-code binaries (not part of the ESF platform)
+/deck.pdf
+/deck.pptx
+/heic2
+/invest.py
+
+# Review / scratch artifacts (626MB of audio, video, captured refs — not source)
+/_review/

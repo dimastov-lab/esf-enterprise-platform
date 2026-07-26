@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ЭСФ — Документы</title>
+  <style>
+    /* Full-width back-office workspace. Scoped to the dashboard template only;
+       login / editor / public / PDF use other templates and are unaffected. */
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body { margin: 0; background: #eef0f3; color: #1b1f24;
+           font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+
+    /* Compact, full-width sticky top bar */
+    .topbar {
+      position: sticky; top: 0; z-index: 20;
+      display: flex; align-items: center; gap: 16px;
+      height: 52px; padding: 0 24px;
+      background: #ffffff; border-bottom: 1px solid #e2e6ea;
+      box-shadow: 0 1px 3px rgba(0,0,0,.05);
+    }
+    .topbar .brand { font-size: 16px; font-weight: 600; color: #111827; white-space: nowrap; }
+    .topbar .grow { flex: 1; }
+    .topbar .who { font-size: 13px; color: #6b7280; white-space: nowrap; }
+    .topbar a.link { font-size: 13px; color: #2563eb; text-decoration: none; white-space: nowrap; }
+    .topbar a.link:hover { text-decoration: underline; }            /* (nit) links had no hover */
+    .topbar a.logout { font-size: 13px; color: #c0392b; text-decoration: none; white-space: nowrap; }
+    .topbar a.logout:hover { text-decoration: underline; }
+    .topbar .new { display: inline-block; background: #2563eb; color: #fff; text-decoration: none;
+           font-size: 13px; font-weight: 600; padding: 8px 14px; border-radius: 8px; white-space: nowrap;
+           transition: background .12s ease; }
+    .topbar .new:hover { background: #1d4ed8; }                      /* (nit) primary CTA had no hover */
+
+    /* Full-width workspace (no narrow centered column) */
+    .workspace { width: 100%; padding: 18px 24px 32px; }
+
+    /* Professional single-row toolbar */
+    .toolbar {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      background: #fff; border: 1px solid #e2e6ea; border-radius: 10px;
+      padding: 10px 12px; margin-bottom: 14px;
+    }
+    .toolbar .fld { display: flex; align-items: center; gap: 6px; }
+    .toolbar label { font-size: 12px; color: #6b7280; white-space: nowrap; }
+    .toolbar input[type=text], .toolbar input[type=date], .toolbar select {
+      padding: 8px 11px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;
+      outline: none; background: #fff;
+    }
+    .toolbar input[type=text] { flex: 1; min-width: 240px; }
+    .toolbar input:focus, .toolbar select:focus { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,.15); }
+    .toolbar .spacer { flex: 1; }
+    .toolbar .count { font-size: 13px; color: #6b7280; white-space: nowrap; font-variant-numeric: tabular-nums; }  /* (nit) steady width while filtering */
+    .toolbar .reset { font-size: 13px; color: #6b7280; text-decoration: underline; }
+    .toolbar .reset:hover { color: #1f2937; }
+    .toolbar .apply { font-size: 13px; padding: 8px 14px; border: 1px solid #2563eb; background: #2563eb; color: #fff; border-radius: 8px; cursor: pointer; }
+    .toolbar .apply:hover { background: #1d4ed8; }
+    /* sortable header links */
+    th .sort-link { color: inherit; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+    th .sort-link:hover { color: #1f2937; }
+    th .arr { color: #2563eb; font-size: 10px; min-width: 8px; }
+    /* server-side pagination */
+    .pager { display: flex; align-items: center; gap: 6px; margin-top: 14px; flex-wrap: wrap; }
+    .pager .pager-info { font-size: 13px; color: #6b7280; }
+    .pager .spacer { flex: 1; }
+    .pager .pg { font-size: 13px; padding: 6px 11px; border: 1px solid #d7dbe0; border-radius: 7px;
+                 background: #fff; color: #1f2430; text-decoration: none; min-width: 34px; text-align: center; }
+    .pager a.pg:hover { background: #f3f6fa; border-color: #b9c2cd; }
+    .pager .pg.cur { background: #2563eb; border-color: #2563eb; color: #fff; }
+    .pager .pg.disabled { color: #c2c8d0; }
+    .pager .pg.dots { border: none; background: none; min-width: 12px; padding: 6px 2px; }
+    .noresults { padding: 40px 16px; text-align: center; color: #9aa1ab; }
+    .noresults a { color: #2563eb; }
+    /* batch selection */
+    .cb-col { width: 34px; text-align: center; }
+    .cb-col input { width: 16px; height: 16px; cursor: pointer; vertical-align: middle; }
+    .batchbar { display: flex; align-items: center; gap: 8px; margin: 10px 0 -2px;
+                background: #eef4ff; border: 1px solid #cfe0fb; border-radius: 10px; padding: 8px 12px; }
+    .batchbar .batch-count { font-size: 13px; color: #1f2937; }
+    .batchbar .spacer { flex: 1; }
+    .batchbar .bb { font-size: 13px; padding: 6px 12px; border: 1px solid #cfd5dd; border-radius: 7px;
+                    background: #fff; color: #1b1f24; cursor: pointer; }
+    .batchbar .bb:hover { background: #f3f6fa; }
+    .batchbar .bb.primary { background: #16a34a; border-color: #16a34a; color: #fff; }
+    .batchbar .bb.primary:hover { background: #128a3a; }
+    .batchbar .bb.danger { color: #c0392b; border-color: #e6c3bf; }
+    .batchbar .bb.danger:hover { background: #fdecec; }
+    .batchbar .bb.ghost { border-color: transparent; background: none; color: #6b7280; }
+
+    /* Full-width table card with horizontal overflow for wide tables */
+    .card { background: #fff; border: 1px solid #e2e6ea; border-radius: 10px; overflow: hidden; }
+    .table-wrap { width: 100%; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; min-width: 1040px; }
+    th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .03em;
+         color: #6b7280; background: #f7f8fa; padding: 11px 16px; border-bottom: 1px solid #e7eaee;
+         cursor: pointer; user-select: none; white-space: nowrap; position: sticky; top: 52px; z-index: 5; }
+    th.nosort { cursor: default; }
+    th .arr { color: #98a0aa; font-size: 10px; }   /* (nit) sort arrow was too faint */
+    th[data-sort]:hover { color: #1f2937; }         /* (nit) no feedback that headers are sortable */
+    td { padding: 12px 16px; border-bottom: 1px solid #f0f2f5; font-size: 14px; vertical-align: middle; }
+    tr:last-child td { border-bottom: none; }
+    tbody tr[data-uuid] { cursor: pointer; }   /* (comfort) row opens the document */
+    tbody tr:hover td { background: #f8fafc; }
+    .status { font-size: 12px; color: #374151; background: #eef2ff; border: 1px solid #dbe3ff;
+              padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+    /* (nit) colour the status pill per state instead of one colour for all */
+    .status.s-DRAFT { background: #f1f3f5; color: #5b6470; border-color: #e3e7eb; }
+    .status.s-VALIDATED { background: #eef2ff; color: #3538cd; border-color: #dbe3ff; }
+    .status.s-PUBLISHED, .status.s-SNAPSHOT_CREATED { background: #e7f6ee; color: #1e7a44; border-color: #b6e2c8; }
+    .status.s-CANCELLED { background: #fdecec; color: #b42318; border-color: #f3c0bd; }
+    .muted { color: #9aa1ab; }
+    .act a, .act button { font-size: 13px; text-decoration: none; border: 1px solid #cfd5dd;
+              background: #fff; color: #1b1f24; padding: 5px 10px; border-radius: 7px; cursor: pointer;
+              transition: background .12s ease, border-color .12s ease; }
+    .act a:hover, .act button:hover { background: #f3f6fa; border-color: #b9c2cd; }  /* (nit) action buttons had no hover */
+    .act .del { color: #c0392b; border-color: #e6c3bf; }
+    .act .del:hover { background: #fdf0ef; border-color: #e0a59f; }
+    .act form { display: inline; margin: 0; }
+    .empty, .noresults { padding: 48px 16px; text-align: center; color: #9aa1ab; }
+    .empty a, .noresults a { color: #2563eb; }
+
+    /* Analytics strip (Module 35) */
+    .stats { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+    .stat { flex: 1 1 130px; min-width: 120px; background: #fff; border: 1px solid #e2e6ea;
+            border-radius: 10px; padding: 14px 16px; text-decoration: none; color: inherit; }
+    a.stat { cursor: pointer; transition: border-color .12s, box-shadow .12s; }
+    a.stat:hover { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37,99,235,.12); }
+    a.stat.active { border-color: #2563eb; background: #f5faff; }
+    .stat-v { font-size: 26px; font-weight: 700; color: #111827; line-height: 1.1; }
+    .stat-v.ok { color: #16a34a; }
+    .stat-l { font-size: 12px; color: #6b7280; margin-top: 3px; }
+    .stat-chart { flex: 2 1 280px; }
+    .chart { display: flex; align-items: flex-end; gap: 8px; height: 56px; margin-top: 6px; }
+    .chart .bar { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+    .chart .bar-fill { width: 100%; max-width: 26px; background: #2563eb; border-radius: 3px 3px 0 0; opacity: .85; }
+    .chart .bar:hover .bar-fill { opacity: 1; }
+    .chart .bar-x { font-size: 9px; color: #9aa1ab; margin-top: 3px; }
+
+    /* Large screens: keep full width, just a touch more side breathing room */
+    @media (min-width: 1800px) { .workspace { padding-left: 40px; padding-right: 40px; } .topbar { padding: 0 40px; } }
+    /* Small screens: table scrolls horizontally (min-width above) */
+    @media (max-width: 720px) { .workspace { padding: 12px; } .topbar { padding: 0 12px; } }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <span class="brand">ЭСФ · Электронные счета-фактуры</span>
+    <span class="grow"></span>
+    <span class="who">{{ username }}</span>
+    {% if is_admin %}<a class="link" href="/admin/users">Пользователи</a>
+    <a class="link" href="/admin/audit">Аудит</a>{% endif %}
+    <a class="logout" href="/logout">Выйти</a>
+    <a class="new" href="/esf/new">+ Новый ЭСФ</a>
+  </div>
+
+  <div class="workspace">
+    {% if stats %}
+    <div class="stats">
+      <a class="stat {{ 'active' if not filters.status }}" href="/dashboard" data-pick="">
+        <div class="stat-v">{{ stats.total }}</div><div class="stat-l">Всего</div></a>
+      <a class="stat {{ 'active' if filters.status == 'DRAFT' }}" href="/dashboard?status=DRAFT" data-pick="DRAFT">
+        <div class="stat-v">{{ stats.drafts }}</div><div class="stat-l">Черновики</div></a>
+      <a class="stat {{ 'active' if filters.status == 'VALIDATED' }}" href="/dashboard?status=VALIDATED" data-pick="VALIDATED">
+        <div class="stat-v">{{ stats.validated }}</div><div class="stat-l">Проверенные</div></a>
+      <a class="stat {{ 'active' if filters.status == 'PUBLISHED' }}" href="/dashboard?status=PUBLISHED" data-pick="PUBLISHED">
+        <div class="stat-v ok">{{ stats.published }}</div><div class="stat-l">Опубликованные</div></a>
+      <div class="stat">
+        <div class="stat-v">{{ stats.today }}</div><div class="stat-l">Сегодня</div></div>
+      <div class="stat stat-chart">
+        <div class="stat-l">Активность · 7 дней</div>
+        <div class="chart">
+          {% for d in stats.week %}
+          <div class="bar" title="{{ d.day }}: {{ d.count }}">
+            <div class="bar-fill" style="height: {{ (4 + (d.count / stats.week_max * 38)) | round(1) }}px;"></div>
+            <div class="bar-x">{{ d.day }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+    {%- set has_filters = filters.q or filters.status or filters.date_from or filters.date_to or filters.supplier or filters.buyer or filters.currency %}
+    {#- query string carrying the active filters (for sort + pagination links) -#}
+    {%- set fbase = 'q=' ~ (filters.q | urlencode) ~ '&status=' ~ filters.status ~ '&currency=' ~ (filters.currency | urlencode) ~ '&supplier=' ~ (filters.supplier | urlencode) ~ '&buyer=' ~ (filters.buyer | urlencode) ~ '&date_from=' ~ filters.date_from ~ '&date_to=' ~ filters.date_to ~ '&page_size=' ~ page_size %}
+    {%- macro sorthead(key, label) %}
+      {%- set newdir = 'asc' if (sort == key and dir == 'desc') else ('desc' if sort == key else 'asc') %}
+      <th data-sort="{{ key }}"><a class="sort-link" href="/dashboard?{{ fbase }}&sort={{ key }}&dir={{ newdir }}">{{ label }}
+        <span class="arr">{% if sort == key %}{{ '▲' if dir == 'asc' else '▼' }}{% endif %}</span></a></th>
+    {%- endmacro %}
+    {% if total > 0 or has_filters %}
+    <form class="toolbar" method="get" action="/dashboard">
+      <input type="text" id="search" name="q" value="{{ filters.q }}" placeholder="Поиск: номер, ИНН, поставщик, покупатель…  ( / )" autocomplete="off" aria-label="Поиск документов">
+      <div class="fld"><label for="statusFilter">Статус</label>
+        <select id="statusFilter" name="status" onchange="this.form.submit()">
+          <option value="">Все</option>
+          <option value="DRAFT" {{ 'selected' if filters.status == 'DRAFT' }}>Черновик</option>
+          <option value="VALIDATED" {{ 'selected' if filters.status == 'VALIDATED' }}>Проверен</option>
+          <option value="PUBLISHED" {{ 'selected' if filters.status == 'PUBLISHED' }}>Опубликован</option>
+          <option value="CANCELLED" {{ 'selected' if filters.status == 'CANCELLED' }}>Отменён</option>
+        </select>
+      </div>
+      <div class="fld"><label for="dateFrom">Дата с</label><input type="date" id="dateFrom" name="date_from" value="{{ filters.date_from }}" onchange="this.form.submit()"></div>
+      <div class="fld"><label for="dateTo">по</label><input type="date" id="dateTo" name="date_to" value="{{ filters.date_to }}" onchange="this.form.submit()"></div>
+      <input type="hidden" name="sort" value="{{ sort }}"><input type="hidden" name="dir" value="{{ dir }}">
+      <input type="hidden" name="page_size" value="{{ page_size }}">
+      <button type="submit" class="apply">Найти</button>
+      <a class="reset" href="/dashboard">Сбросить</a>
+      <span class="spacer"></span>
+      <span class="count" id="count">Найдено: {{ total }}</span>
+    </form>
+
+    {#- batch action bar — appears when ≥1 row is selected (v6.0 #3) -#}
+    <div class="batchbar" id="batchbar" hidden>
+      <span class="batch-count"><b id="batchN">0</b> выбрано</span>
+      <button type="button" class="bb primary" data-batch="publish">Опубликовать</button>
+      <button type="button" class="bb" data-batch="pdf">Скачать PDF (ZIP)</button>
+      <button type="button" class="bb danger" data-batch="delete">Удалить</button>
+      <span class="spacer"></span>
+      <button type="button" class="bb ghost" id="batchClear">Снять выделение</button>
+    </div>
+
+    <div class="card">
+      <div class="table-wrap">
+        <table id="docs">
+          <thead>
+            <tr>
+              <th class="nosort cb-col"><input type="checkbox" id="selectAll" title="Выбрать все на странице"></th>
+              {{ sorthead('number', 'Номер') }}
+              {{ sorthead('date', 'Дата') }}
+              {{ sorthead('supplier', 'Поставщик') }}
+              {{ sorthead('buyer', 'Покупатель') }}
+              {{ sorthead('status', 'Статус') }}
+              {{ sorthead('updated', 'Обновлён') }}
+              <th class="nosort" style="text-align:right;">Действия</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in rows %}
+            <tr data-status="{{ r.status_code }}" data-uuid="{{ r.uuid }}">
+              <td class="cb-col"><input type="checkbox" class="rowcheck" value="{{ r.uuid }}" data-editable="{{ '1' if not r.published else '0' }}"></td>
+              <td><strong>{{ r.number }}</strong></td>
+              <td class="muted">{{ r.date }}</td>
+              <td>{{ r.supplier }}</td>
+              <td>{{ r.buyer }}</td>
+              <td><span class="status s-{{ r.status_code }}">{{ r.status }}</span></td>
+              <td class="muted">{{ r.updated }}</td>
+              <td class="act" style="text-align:right; white-space:nowrap;">
+                <a href="/esf/{{ r.uuid }}">Открыть</a>
+                <form method="post" action="/esf/{{ r.uuid }}/duplicate" title="Создать копию в черновике">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <button type="submit">Дублировать</button>
+                </form>
+                <a href="/result/{{ r.uuid }}">Результат</a>
+                <a href="/pdf/{{ r.uuid }}.pdf" target="_blank" rel="noopener">PDF</a>
+                {% if not r.published %}
+                <form method="post" action="/esf/{{ r.uuid }}/delete"
+                      onsubmit="return confirm('Удалить документ {{ r.number }} безвозвратно? Это действие необратимо.');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <button type="submit" class="del">Удалить</button>
+                </form>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+            {% if not rows %}
+            <tr><td colspan="8" class="noresults">Ничего не найдено. <a href="/dashboard">Сбросить фильтры</a></td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    {#- server-side pagination -#}
+    {% if total_pages > 1 %}
+    <div class="pager">
+      <span class="pager-info">Стр. {{ page }} из {{ total_pages }} · всего {{ total }}</span>
+      <span class="spacer"></span>
+      {% if page > 1 %}<a class="pg" href="/dashboard?{{ fbase }}&sort={{ sort }}&dir={{ dir }}&page={{ page - 1 }}">← Назад</a>{% else %}<span class="pg disabled">← Назад</span>{% endif %}
+      {% set lo = [1, page - 2] | max %}{% set hi = [total_pages, page + 2] | min %}
+      {% if lo > 1 %}<a class="pg" href="/dashboard?{{ fbase }}&sort={{ sort }}&dir={{ dir }}&page=1">1</a>{% if lo > 2 %}<span class="pg dots">…</span>{% endif %}{% endif %}
+      {% for p in range(lo, hi + 1) %}
+        {% if p == page %}<span class="pg cur">{{ p }}</span>{% else %}<a class="pg" href="/dashboard?{{ fbase }}&sort={{ sort }}&dir={{ dir }}&page={{ p }}">{{ p }}</a>{% endif %}
+      {% endfor %}
+      {% if hi < total_pages %}{% if hi < total_pages - 1 %}<span class="pg dots">…</span>{% endif %}<a class="pg" href="/dashboard?{{ fbase }}&sort={{ sort }}&dir={{ dir }}&page={{ total_pages }}">{{ total_pages }}</a>{% endif %}
+      {% if page < total_pages %}<a class="pg" href="/dashboard?{{ fbase }}&sort={{ sort }}&dir={{ dir }}&page={{ page + 1 }}">Вперёд →</a>{% else %}<span class="pg disabled">Вперёд →</span>{% endif %}
+    </div>
+    {% endif %}
+    {% else %}
+    <div class="card"><div class="empty">
+      <p>Документов пока нет.</p>
+      <a href="/esf/new">Создать первый ЭСФ</a>
+    </div></div>
+    {% endif %}
+  </div>
+
+  <script>
+    (function(){
+      // Server-side dashboard: search/sort/filter/pagination are URL-driven (the
+      // form submits to /dashboard). This script only adds keyboard + row-click.
+      var table = document.getElementById('docs');
+      var search = document.getElementById('search');
+      var CSRF = "{{ csrf_token }}";
+      if (table) {
+        var tbody = table.querySelector('tbody');
+        // click anywhere on a row to open it — except actions and the checkbox
+        tbody.addEventListener('click', function(e){
+          if (e.target.closest('.act') || e.target.closest('.cb-col')) return;
+          var tr = e.target.closest('tr[data-uuid]');
+          if (tr) window.location.href = '/esf/' + tr.getAttribute('data-uuid');
+        });
+
+        // -- batch selection + actions (v6.0 #3) --
+        var checks = function(){ return Array.prototype.slice.call(tbody.querySelectorAll('.rowcheck')); };
+        var selectAll = document.getElementById('selectAll');
+        var bar = document.getElementById('batchbar'), batchN = document.getElementById('batchN');
+        function refresh(){
+          var sel = checks().filter(function(c){ return c.checked; });
+          if (batchN) batchN.textContent = sel.length;
+          if (bar) bar.hidden = sel.length === 0;
+          if (selectAll){ var all = checks(); selectAll.checked = all.length > 0 && sel.length === all.length;
+            selectAll.indeterminate = sel.length > 0 && sel.length < all.length; }
+        }
+        tbody.addEventListener('change', function(e){ if (e.target.classList.contains('rowcheck')) refresh(); });
+        if (selectAll) selectAll.addEventListener('change', function(){ checks().forEach(function(c){ c.checked = selectAll.checked; }); refresh(); });
+        var clearBtn = document.getElementById('batchClear');
+        if (clearBtn) clearBtn.addEventListener('click', function(){ checks().forEach(function(c){ c.checked = false; }); refresh(); });
+
+        function batchSubmit(action, opts){
+          var sel = checks().filter(function(c){ return c.checked; });
+          if (opts && opts.editableOnly) sel = sel.filter(function(c){ return c.getAttribute('data-editable') === '1'; });
+          if (!sel.length){ alert(opts && opts.editableOnly ? 'Нет подходящих документов (нужны черновики).' : 'Ничего не выбрано.'); return; }
+          if (opts && opts.confirm && !window.confirm(opts.confirm.replace('{n}', sel.length))) return;
+          var f = document.createElement('form');
+          f.method = 'post'; f.action = action; f.style.display = 'none';
+          if (opts && opts.target) f.target = opts.target;
+          var c = document.createElement('input'); c.name = 'csrf_token'; c.value = CSRF; f.appendChild(c);
+          sel.forEach(function(ch){ var i = document.createElement('input'); i.name = 'uuid'; i.value = ch.value; f.appendChild(i); });
+          document.body.appendChild(f); f.submit();
+        }
+        if (bar) bar.addEventListener('click', function(e){
+          var b = e.target.closest('.bb[data-batch]'); if (!b) return;
+          var act = b.getAttribute('data-batch');
+          if (act === 'publish') batchSubmit('/esf/batch/publish', { editableOnly: true, confirm: 'Опубликовать выбранные ({n})? После публикации их нельзя изменить.' });
+          else if (act === 'pdf') batchSubmit('/esf/batch/pdf', { target: '_blank' });
+          else if (act === 'delete') batchSubmit('/esf/batch/delete', { editableOnly: true, confirm: 'Удалить выбранные черновики ({n}) безвозвратно?' });
+        });
+        refresh();
+      }
+      document.addEventListener('keydown', function(e){
+        var typing = /^(INPUT|SELECT|TEXTAREA)$/.test((e.target.tagName || ''));
+        if (e.key === '/' && !typing && search) { e.preventDefault(); search.focus(); }
+        else if ((e.key === 'n' || e.key === 'N') && !typing && !e.metaKey && !e.ctrlKey) { e.preventDefault(); location.href = '/esf/new'; }
+        else if (e.key === 'Escape' && search && document.activeElement === search) { search.blur(); }
+      });
+    })();
+  </script>
+</body>
+</html>

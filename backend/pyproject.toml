@@ -1,0 +1,25 @@
+# Tooling config for the ESF backend (lint / format / coverage).
+[tool.ruff]
+line-length = 110
+target-version = "py311"   # runtime is python:3.11-slim (see backend/Dockerfile)
+extend-exclude = ["alembic/versions", ".venv", "legacy"]
+
+[tool.ruff.lint]
+# Enforced gate: F = pyflakes (undefined names, unused imports/vars — real bugs),
+# I = import order. High signal, zero noise — passes clean today.
+# (B = bugbear and UP = pyupgrade are valuable but would require a large one-off
+#  modernization sweep; opt them in later behind their own PR.)
+select = ["F", "I"]
+ignore = ["E501"]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/dev_sample.py", "app/routers/dev_preview.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning"]

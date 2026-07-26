@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+legacy/
+tests/
+_shots/
+*.sqlite
+*.sqlite3
+.DS_Store

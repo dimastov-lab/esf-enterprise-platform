@@ -1,0 +1,22 @@
+# Active runtime dependencies. Target runtime is Python 3.11 (see backend/Dockerfile).
+# Versions are kept current with the security advisory DB; `pip-audit` runs in CI.
+# starlette is pinned explicitly (fastapi's allowed range is broad, so leaving it
+# unpinned resolves non-deterministically). 1.3.1 clears all starlette advisories and
+# required migrating templates to TemplateResponse(request, name, ctx); the full
+# 55-test regression suite (CSRF, sessions, publication, snapshots, PDF) is green.
+fastapi==0.138.1
+starlette==1.3.1          # explicit pin — see note above
+uvicorn[standard]==0.34.0 # pulls patched ujson/python-dotenv transitives
+sqlalchemy==2.0.30
+alembic==1.13.1
+psycopg2-binary==2.9.9
+bcrypt==5.0.0             # password hashing (used directly; passlib 1.7.4 incompatible)
+itsdangerous==2.2.0       # signed session cookie (Starlette SessionMiddleware)
+jinja2==3.1.6            # clears GHSA-q2x7/gmj6/cpwx template CVEs
+python-multipart==0.0.31  # CVE-2024-53981 + GHSA-6jv3/5rvq/v9pg multipart DoS fixes
+weasyprint==69.0          # PDF rendered from the SAME HTML template (latest; CVE fixes)
+qrcode[pil]==7.4.2        # QR generation for public verification (Sprint 7R)
+pillow==12.2.0            # QR PNG image backend (clears all pillow 10.3 CVEs)
+
+# WeasyPrint native libs (macOS dev): brew install pango  (provides pango/cairo/gobject).
+# On Linux/Docker these ship in standard paths. No ReportLab — the PDF is the HTML template.

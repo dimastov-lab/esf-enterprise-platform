@@ -1,0 +1,409 @@
+/* =========================================================================
+   ESF STI-007 form — visual reproduction of «Копия 6.pdf»
+   Monochrome, dense, fully-ruled official document. HTML/CSS only.
+   See docs/UI_REFERENCE.md. One stylesheet for edit / view / public modes.
+   ========================================================================= */
+
+:root {
+  --line: #000;
+  --hair: 0.5px solid #000;  /* hairline, matching the official form */
+  --doc-w: 1056px;          /* A4 landscape proportions on screen */
+  --fs: 10px;
+}
+
+* { box-sizing: border-box; }
+
+/* The official «Копия 6.pdf» embeds DejaVu Sans — bundle it so HTML + PDF match exactly. */
+@font-face {
+  font-family: "DejaVu Sans";
+  src: url("/static/fonts/DejaVuSans.ttf") format("truetype");
+  font-weight: 400; font-style: normal;
+}
+@font-face {
+  font-family: "DejaVu Sans";
+  src: url("/static/fonts/DejaVuSans-Bold.ttf") format("truetype");
+  font-weight: 700; font-style: normal;
+}
+
+.esf-body {
+  margin: 0;
+  background: #e9ebee;
+  font-family: "DejaVu Sans", Arial, sans-serif;
+  color: #000;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---- dev-only preview toolbar (not part of the document) ---------------- */
+.dev-bar {
+  max-width: var(--doc-w);
+  margin: 14px auto 0;
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  color: #444;
+  background: #fff;
+  border: 1px solid #cdd2d8;
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+.dev-bar a { color: #2563eb; text-decoration: none; margin: 0 2px; }
+.dev-bar a:hover { text-decoration: underline; }
+.dev-bar .cur { color: #111; font-weight: 700; }
+
+/* ---- document shell ---------------------------------------------------- */
+.esf-doc {
+  width: var(--doc-w);
+  margin: 14px auto 40px;
+  background: #fff;
+  padding: 0;
+  font-size: var(--fs);
+  line-height: 1.15;
+}
+
+/* ---- top header band --------------------------------------------------- */
+.esf-head {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr 1fr;
+  align-items: start;
+  margin-bottom: 4px;
+}
+.esf-head .h-left .org-blank { font-weight: 700; }
+.esf-head .h-center { text-align: center; }
+.esf-head .h-center .t1 { font-weight: 700; font-size: 14px; letter-spacing: .3px; }
+.esf-head .h-center .t2 { font-size: 10px; }
+.esf-head .h-right { text-align: right; }
+.esf-head .h-right .ap { font-weight: 700; }
+.esf-head .h-right .sheet { font-size: 9px; }
+
+/* ---- field code chips & labels ----------------------------------------- */
+.fcode {
+  display: inline-block;
+  border: var(--hair);
+  font-size: 7px;
+  line-height: 1;
+  padding: 2px 3px;
+  background: #fff;
+  white-space: nowrap;
+}
+.lab { font-size: 8.5px; }
+.strong { font-weight: 700; }
+
+/* ---- boxed digits (INN, codes) ----------------------------------------- */
+.dboxes { display: inline-flex; vertical-align: middle; }
+.db {
+  width: 13px; height: 15px;
+  border: var(--hair);
+  margin-left: -1px;
+  text-align: center;
+  line-height: 15px;
+  font-size: 10px;
+}
+.dboxes .db:first-child { margin-left: 0; }
+
+/* ---- boxed date with день/месяц/год captions --------------------------- */
+.datebox { display: inline-flex; gap: 7px; align-items: flex-start; vertical-align: middle; }
+.dgrp { display: inline-flex; flex-direction: column; align-items: center; }
+.dgrp .drow { display: inline-flex; }
+.dcap { font-size: 6.5px; margin-top: 1px; }
+
+/* ---- status row -------------------------------------------------------- */
+.status-row { display: flex; border: var(--hair); margin-bottom: 0; }
+.status-cell {
+  display: flex; align-items: center; gap: 5px;
+  border-right: var(--hair); padding: 3px 5px;
+}
+.status-cell:last-child { border-right: none; }
+.status-cell.grow { flex: 1; }
+
+/* ---- section title bands ----------------------------------------------- */
+.section-title {
+  text-align: center; font-weight: 700; font-size: 10px;
+  border: var(--hair); border-top: none; padding: 1px 0;
+}
+
+/* ---- Раздел 1 — supplier / buyer requisites ---------------------------- */
+.req-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  border: var(--hair); border-top: none;
+}
+.req-col + .req-col { border-left: var(--hair); }
+.req-row {
+  display: flex; align-items: center;
+  border-bottom: var(--hair); min-height: 19px;
+}
+.req-row:last-child { border-bottom: none; }
+.req-row .fcode {
+  align-self: flex-start; margin: 1px 4px 0 1px;
+  border: var(--hair); padding: 1px 2px; font-size: 7px; line-height: 1;
+}
+.req-row .flabel {
+  font-size: 8px; padding: 1px 4px; display: flex; align-items: center;
+  white-space: nowrap;
+}
+.req-row .fval {
+  flex: 1; padding: 1px 4px; display: flex; align-items: center;
+  font-size: 9px; min-width: 0; overflow-wrap: anywhere;
+}
+.req-row .finn { padding: 1px 4px; display: flex; align-items: center; }
+.req-row .finn.right { margin-left: auto; }
+.req-row.tall { min-height: 42px; align-items: flex-start; }
+.req-row.tall .flabel,
+.req-row.tall .fval { align-items: flex-start; padding-top: 2px; }
+
+/* ---- Раздел 2 — supply info ------------------------------------------- */
+.supply { border: var(--hair); border-top: none; }
+.supply-row { display: flex; border-bottom: var(--hair); }
+.supply-row:last-child { border-bottom: none; }
+.supply-cell {
+  display: flex; align-items: center; gap: 5px;
+  border-right: var(--hair); padding: 3px 5px; min-height: 22px;
+}
+.supply-cell:last-child { border-right: none; }
+.supply-cell.grow { flex: 1; }
+.supply-cell .lab { white-space: nowrap; }
+.inline-no { font-size: 8.5px; }
+
+/* ---- Раздел 3 — currency strip ----------------------------------------- */
+.cur-strip {
+  display: flex; gap: 40px; justify-content: flex-start; align-items: flex-end;
+  border: var(--hair); border-top: none; padding: 4px 10px 5px;
+}
+.cur-strip .trace { margin-left: auto; }
+.cur-item { text-align: center; }
+.cur-item .v {
+  display: inline-block; min-width: 200px;
+  border-bottom: var(--hair); font-size: 10px; padding: 0 6px 1px; text-align: center;
+}
+.cur-item .c { font-size: 7.5px; margin-top: 1px; }
+.trace { display: flex; align-items: center; gap: 5px; font-size: 8px; }
+.checkbox { width: 11px; height: 11px; border: var(--hair); display: inline-block; }
+
+/* ---- goods table ------------------------------------------------------- */
+table.goods { width: 100%; border-collapse: collapse; table-layout: fixed; }
+table.goods th, table.goods td {
+  border: var(--hair); font-size: 8px; padding: 2px 3px; vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+table.goods thead th { font-weight: 400; text-align: center; line-height: 1.05; }
+table.goods td.ctr { text-align: center; }
+table.goods td.num { text-align: right; white-space: nowrap; }
+table.goods td.left { text-align: left; }
+table.goods tr.item td { height: 42px; }
+table.goods tr.tot td { font-weight: 700; }
+table.goods td.tot-label { text-align: right; }
+table.goods td.xmark { text-align: center; font-weight: 700; }
+
+/* ---- official STI-007 footer: QR | 450+label | Ф.И.О. | timestamp -------
+   Matches the salyk.kg form: QR in the bottom-left cell, the 450 signatory
+   label, the director-name cell (own vertical divider, no signature line),
+   and the system date/time as a vertical stamp on the far right edge. */
+.esf-foot {
+  display: grid; grid-template-columns: 124px minmax(0, 1fr) minmax(190px, 260px) 26px;
+  border: var(--hair); border-top: none; align-items: stretch;
+}
+.qr-box {
+  border-right: var(--hair); display: flex; align-items: center;
+  justify-content: center; padding: 8px;
+}
+.qr-img { width: 88px; height: 88px; object-fit: contain; flex: none; }  /* fixed size, never stretched */
+.qr-ph {
+  width: 88px; height: 88px; border: 1px dashed #666; flex: none;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 8px; color: #666; text-align: center; line-height: 1.25;
+}
+.sign { display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; }
+.sign .fcode { align-self: flex-start; }
+.sign .slabel { font-size: 8.5px; line-height: 1.25; }
+.sign-name {
+  border-left: var(--hair);
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  padding: 6px 8px; font-size: 10px; overflow-wrap: anywhere;
+}
+.ts {
+  border-left: var(--hair);
+  writing-mode: vertical-rl; transform: rotate(180deg);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 7px; color: #333;
+}
+
+/* ---- inputs: structural base. Inputs are rendered ONLY in edit mode, but the
+        base stays neutral; all visible styling is scoped under .mode-edit so that
+        view / public / pdf output is byte-identical. ------------------------- */
+.cinp {
+  border: none; background: transparent; font: inherit; color: inherit;
+  width: 100%; padding: 0; margin: 0;
+}
+
+/* ======================================================================
+   EDIT MODE ONLY — make editable areas obvious (Sprint UX-1).
+   None of these rules match mode-view / mode-public / mode-pdf.
+   ====================================================================== */
+.mode-edit .cinp {
+  background: #f1f7ff;                 /* light blue tint => "you can type here" */
+  border: 1px solid #9cc3f0;          /* thin blue border */
+  border-radius: 3px;                 /* rounded 2-3px */
+  padding: 0 3px;
+  cursor: text;
+  caret-color: #2563eb;               /* visible cursor */
+  box-sizing: border-box;
+}
+.mode-edit .cinp:hover { border-color: #6aa9e9; background: #eaf3ff; }
+.mode-edit .cinp:focus {
+  outline: none;
+  border-color: #2563eb;
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, .30);   /* focus highlight */
+}
+.mode-edit .cinp::placeholder { color: #9fb4cc; font-style: italic; }
+
+/* Required + empty (placeholder showing) => amber, clearly "needs a value". */
+.mode-edit .cinp.req:placeholder-shown { background: #fff6e8; border-color: #efb45f; }
+.mode-edit .cinp.req:placeholder-shown:focus { background: #ffffff; border-color: #2563eb; }
+
+/* Goods-table cells with an input read as fillable (graceful no-op where :has unsupported). */
+.mode-edit table.goods td:has(.cinp) { background: #f8fbff; }
+
+/* Subtle "editing" badge in the action bar (outside the document). */
+.edit-badge {
+  font-family: -apple-system, Arial, sans-serif; font-size: 12px; font-weight: 600;
+  color: #1d4ed8; background: #e8f1ff; border: 1px solid #bcd6f7;
+  padding: 3px 9px; border-radius: 999px; white-space: nowrap;
+}
+
+/* Counterparty lookup dropdown (Sprint UX-2). Floats above the form; edit mode only. */
+.cp-dropdown {
+  position: absolute; z-index: 1000; display: none;
+  background: #fff; border: 1px solid #9cc3f0; border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.18);
+  font-family: -apple-system, Arial, sans-serif; font-size: 13px;
+  max-height: 280px; overflow-y: auto;
+}
+.cp-dropdown .cp-item { padding: 7px 10px; cursor: pointer; border-bottom: 1px solid #f0f2f5; }
+.cp-dropdown .cp-item:last-child { border-bottom: none; }
+.cp-dropdown .cp-item.active, .cp-dropdown .cp-item:hover { background: #eaf3ff; }
+.cp-dropdown .cp-inn { font-weight: 700; color: #1d4ed8; margin-right: 6px; }
+.cp-dropdown .cp-name { color: #1b1f24; }
+.cp-dropdown .cp-sub { color: #6b7280; font-size: 11px; margin-top: 1px; }
+.cp-dropdown .cp-empty { padding: 9px 11px; color: #9aa1ab; font-style: italic; }
+
+/* ---- Sprint 5R: edit chrome (NOT part of the document; view/public unaffected) ---- */
+.edit-bar {
+  max-width: var(--doc-w); margin: 14px auto 0;
+  display: flex; align-items: center; gap: 8px;
+  font-family: -apple-system, Arial, sans-serif;
+}
+.edit-bar .spacer { flex: 1; }
+.edit-bar form { display: inline; margin: 0; }
+.ebtn {
+  font-size: 13px; padding: 6px 12px; border: 1px solid #c3c9d2; border-radius: 6px;
+  background: #fff; color: #222; cursor: pointer; text-decoration: none; line-height: 1.2;
+}
+.ebtn.save { background: #2563eb; color: #fff; border-color: #2563eb; }
+.ebtn.primary { background: #16a34a; color: #fff; border-color: #16a34a; }
+.ebtn.danger { color: #c0392b; border-color: #e3b7b3; }
+.ebtn { transition: filter .12s ease, background .12s ease; }   /* (nit) hover was instant/janky */
+.ebtn:hover { filter: brightness(0.96); }
+.pub-banner { font-family: -apple-system, Arial, sans-serif; font-size: 13px; color: #1e7a44; font-weight: 600; }
+.val-errors, .val-ok {
+  max-width: var(--doc-w); margin: 8px auto 0; padding: 8px 12px; border-radius: 6px;
+  font-family: -apple-system, Arial, sans-serif; font-size: 13px;
+}
+.val-errors { background: #fdf0f0; border: 1px solid #f0b9b4; color: #9b1c1c; }
+.val-errors ul { margin: 6px 0 0; padding-left: 18px; }
+.val-ok { background: #eafaf1; border: 1px solid #9bdcb6; color: #1e7a44; }
+.qr-img { width: 88px; height: 88px; object-fit: contain; }
+.autosave { font-family: -apple-system, Arial, sans-serif; font-size: 12px; color: #6b7280; }
+.autosave.ok { color: #1e7a44; }
+.autosave.saving { color: #2563eb; }
+.autosave.dirty { color: #b45309; }
+.autosave.err { color: #c0392b; }
+/* table inputs adopt their cell's alignment so numbers stay right-aligned */
+table.goods .cinp { text-align: inherit; }
+.boxin { min-width: 116px; }
+.datein { min-width: 94px; }   /* (nit) was 78px — clipped a full дд.мм.гггг value */
+.cur-item .v .cinp { text-align: center; }
+.rowdel {
+  border: 1px solid #e3b7b3; background: #fff; color: #c0392b;
+  font-size: 11px; line-height: 1; width: 16px; height: 16px;
+  border-radius: 3px; cursor: pointer; padding: 0;
+}
+
+/* =======================================================================
+   Official ESF viewer — view + public modes only.
+   A dedicated document viewer: thin fixed toolbar, the STI-007 page on a
+   neutral gray stage, fit-to-width (uniform scale — proportions unchanged).
+   None of this matches mode-edit or mode-pdf (wrappers aren't emitted there).
+   ======================================================================= */
+html { height: 100%; }
+/* ESF viewer (view + public): a LIGHT document viewer — minimal toolbar over a
+   white canvas; the page is a centered paper sheet with a soft shadow, large
+   margins, like the official esf.salyk.kg viewer. */
+.esf-body.mode-view, .esf-body.mode-public {
+  height: 100%; overflow: hidden;              /* the stage scrolls, not the page */
+  background: #f4f5f7;                          /* light, near-white canvas */
+}
+
+/* minimal, light, compact toolbar — never dominates the document */
+.viewer-bar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  height: 44px; display: flex; align-items: center; gap: 8px;
+  padding: 0 14px; background: #ffffff; border-bottom: 1px solid #e3e6ea;
+  box-shadow: 0 1px 2px rgba(0,0,0,.05);
+  font-family: -apple-system, "Segoe UI", Arial, sans-serif;
+}
+.viewer-bar .vb-title { color: #6b7280; font-weight: 600; font-size: 12.5px; white-space: nowrap; }
+.viewer-bar .vb-spacer { flex: 1; }
+.viewer-bar .vb-btn {
+  font-size: 12.5px; padding: 5px 11px; border-radius: 6px; cursor: pointer; white-space: nowrap;
+  background: #f3f4f6; color: #1f2430; border: 1px solid #d7dbe0; text-decoration: none; line-height: 1.2;
+}
+.viewer-bar .vb-btn:hover { background: #e9ecf1; border-color: #c3c9d2; }
+.viewer-bar .vb-btn.ghost { background: transparent; border-color: transparent; color: #4b5563; }
+.viewer-bar .vb-btn.ghost:hover { background: #eef1f4; }
+.viewer-bar .vb-btn.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+.viewer-bar .vb-btn.primary:hover { background: #1d4ed8; }
+.viewer-bar .vb-btn.danger { color: #c0392b; border-color: #e6c3bf; background: #fff; }
+.viewer-bar .vb-btn.danger:hover { background: #fdecec; border-color: #e0a59f; }
+
+/* zoom control cluster (light segmented control) */
+.viewer-bar .vb-zoom {
+  display: flex; align-items: center; gap: 1px;
+  background: #f1f3f5; border: 1px solid #dfe3e8; border-radius: 8px; padding: 2px;
+}
+.viewer-bar .vb-z {
+  font-size: 12px; min-width: 28px; padding: 4px 9px; border-radius: 6px; cursor: pointer;
+  background: transparent; color: #374151; border: none; line-height: 1.1; white-space: nowrap;
+}
+.viewer-bar .vb-pct { min-width: 46px; text-align: center; font-size: 12px; color: #6b7280; font-variant-numeric: tabular-nums; }
+.viewer-bar .vb-z:hover { background: #e3e7ec; color: #111827; }
+.viewer-bar .vb-z.active { background: #2563eb; color: #fff; }
+.viewer-bar .vb-div { width: 1px; height: 18px; background: #dfe3e8; margin: 0 4px; }
+
+/* white canvas below the toolbar; the document scrolls here.
+   flex + margin:auto centers the paper on BOTH axes and still scrolls when the
+   page is larger than the viewport (no clipping). */
+.viewer-stage {
+  position: fixed; top: 44px; left: 0; right: 0; bottom: 0;
+  overflow: auto; background: #f4f5f7;
+  display: flex; padding: 40px 40px 56px;       /* large margins around the sheet */
+}
+.viewer-fit { margin: auto; flex: none; }       /* JS sets width/height = scaled page */
+.viewer-page {
+  width: var(--doc-w); background: #fff;
+  box-shadow: 0 6px 28px rgba(0,0,0,.16), 0 1px 4px rgba(0,0,0,.10);  /* soft paper shadow */
+}
+.mode-view .viewer-page .esf-doc,
+.mode-public .viewer-page .esf-doc { margin: 0; }   /* fill the page wrapper exactly */
+
+@media (max-width: 760px) { .viewer-stage { padding: 14px; } }
+
+/* ---- print: real A4 landscape ----------------------------------------- */
+@page { size: A4 landscape; margin: 8mm; }
+@media print {
+  html, .esf-body { height: auto; overflow: visible; background: #fff; }
+  .dev-bar, .edit-bar, .viewer-bar { display: none !important; }
+  /* un-viewer the page so it prints as a normal A4 document */
+  .viewer-stage { position: static; overflow: visible; background: #fff; display: block; padding: 0; }
+  .viewer-fit { width: auto !important; height: auto !important; margin: 0; }
+  .viewer-page { transform: none !important; width: auto; box-shadow: none; }
+  .esf-doc { width: auto; margin: 0; border: 1.5px solid #000; }
+}

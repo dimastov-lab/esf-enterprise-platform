@@ -1,0 +1,8 @@
+# Development / test dependencies (not required to run the app).
+-r requirements.txt
+pytest==8.4.2
+pytest-cov==7.1.0
+ruff==0.15.20
+pip-audit==2.9.0
+pypdf==6.14.2          # used by tests to assert PDF text content
+httpx==0.28.1          # required by starlette/fastapi TestClient

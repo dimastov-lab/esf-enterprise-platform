@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}{{ doc.document_number }} — ESF Platform{% endblock %}
+{% block body %}
+<div class="container">
+  <div class="page-header">
+    <h1>{{ doc.document_number }}</h1>
+    <a href="/dashboard" class="btn btn-secondary">← Dashboard</a>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1.5rem;">
+      <div>
+        <h2 style="font-size:1.2rem;color:#2c3e50;margin-bottom:.4rem;">{{ doc.title }}</h2>
+        {% if doc.status.value == "PUBLISHED" %}
+          <span class="badge badge-published">Published</span>
+        {% else %}
+          <span class="badge badge-draft">Draft</span>
+        {% endif %}
+      </div>
+      <div style="display:flex;gap:.6rem;">
+        {% if doc.status.value == "DRAFT" %}
+        <form method="post" action="/documents/{{ doc.id }}/generate" style="margin:0;">
+          <button type="submit" class="btn btn-success">⚡ Generate ESF + PDF + QR</button>
+        </form>
+        {% else %}
+        <a href="/documents/{{ doc.id }}/pdf" class="btn btn-primary">⬇ Download PDF</a>
+        <a href="/public/{{ doc.document_number }}" target="_blank" class="btn btn-warning">🌐 Public Page</a>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="detail-grid">
+      <span class="detail-label">Document Number</span>
+      <span class="detail-value"><strong>{{ doc.document_number }}</strong></span>
+
+      <span class="detail-label">Title</span>
+      <span class="detail-value">{{ doc.title }}</span>
+
+      <span class="detail-label">Applicant Name</span>
+      <span class="detail-value">{{ doc.applicant_name }}</span>
+
+      <span class="detail-label">Applicant ID</span>
+      <span class="detail-value">{{ doc.applicant_id }}</span>
+
+      {% if doc.description %}
+      <span class="detail-label">Description</span>
+      <span class="detail-value" style="white-space:pre-wrap;">{{ doc.description }}</span>
+      {% endif %}
+
+      <span class="detail-label">Created</span>
+      <span class="detail-value" style="color:#7f8c8d;">{{ doc.created_at.strftime("%Y-%m-%d %H:%M") }}</span>
+    </div>
+
+    {% if doc.status.value == "PUBLISHED" %}
+    <hr style="margin:1.5rem 0;border:none;border-top:1px solid #f0f2f5;">
+    <div style="display:flex;align-items:flex-start;gap:2rem;">
+      {% if doc.qr_path %}
+      <div style="text-align:center;">
+        <img src="/files/qr/{{ doc.document_number }}.png" alt="QR Code" style="width:140px;height:140px;border:1px solid #e9ecef;border-radius:8px;padding:6px;">
+        <p style="font-size:.75rem;color:#95a5a6;margin-top:.4rem;">Scan to verify</p>
+      </div>
+      {% endif %}
+      <div>
+        <p style="font-size:.85rem;font-weight:600;color:#7f8c8d;margin-bottom:.4rem;">Public verification URL</p>
+        <a href="/public/{{ doc.document_number }}" target="_blank" style="color:#2980b9;font-size:.9rem;word-break:break-all;">/public/{{ doc.document_number }}</a>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Пользователи — ЭСФ</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #eef0f3; color: #1b1f24;
+           font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+    .wrap { max-width: 880px; margin: 28px auto; padding: 0 18px; }
+    .top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+    .top h1 { font-size: 20px; font-weight: 600; margin: 0; }
+    .top a { color: #2563eb; text-decoration: none; font-size: 14px; }
+    .card { background: #fff; border: 1px solid #e2e6ea; border-radius: 10px; padding: 18px; margin-bottom: 18px; }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; font-size: 12px; text-transform: uppercase; color: #6b7280;
+         padding: 8px 10px; border-bottom: 1px solid #e7eaee; }
+    td { padding: 9px 10px; border-bottom: 1px solid #f0f2f5; font-size: 14px; }
+    .pill { font-size: 12px; padding: 2px 8px; border-radius: 999px; background: #eef2ff; color: #3730a3; }
+    form.create { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+    .fld { display: flex; flex-direction: column; gap: 4px; }
+    .fld label { font-size: 12px; color: #6b7280; }
+    .fld input, .fld select { padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px; }
+    button { padding: 9px 14px; background: #16a34a; color: #fff; border: none; border-radius: 8px;
+             font-size: 14px; font-weight: 600; cursor: pointer; }
+    .err { background: #fdf0f0; border: 1px solid #f0b9b4; color: #9b1c1c; font-size: 13px;
+           padding: 8px 10px; border-radius: 8px; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <h1>Пользователи и роли</h1>
+      <div><span style="color:#6b7280;font-size:13px;margin-right:14px;">{{ username }}</span>
+        <a href="/admin/audit" style="margin-right:14px;">Журнал аудита</a>
+        <a href="/dashboard">← К документам</a></div>
+    </div>
+
+    {% if error %}<div class="err">{{ error }}</div>{% endif %}
+
+    <div class="card">
+      <h3 style="margin:0 0 12px;font-size:15px;">Добавить пользователя</h3>
+      <form class="create" method="post" action="/admin/users">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="fld"><label>Имя пользователя</label><input type="text" name="new_username" required></div>
+        <div class="fld"><label>Пароль</label><input type="password" name="new_password" required></div>
+        <div class="fld"><label>Роль</label>
+          <select name="role">{% for r in roles %}<option value="{{ r }}">{{ r }}</option>{% endfor %}</select>
+        </div>
+        <button type="submit">Создать</button>
+      </form>
+    </div>
+
+    <div class="card" style="padding:0;overflow:hidden;">
+      <table>
+        <thead><tr><th>ID</th><th>Имя</th><th>Роли</th><th>Админ</th><th>Активен</th></tr></thead>
+        <tbody>
+          {% for u in rows %}
+          <tr>
+            <td>{{ u.id }}</td>
+            <td>{{ u.username }}</td>
+            <td><span class="pill">{{ u.roles }}</span></td>
+            <td>{{ "да" if u.is_admin else "нет" }}</td>
+            <td>{{ "да" if u.active else "нет" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</body>
+</html>

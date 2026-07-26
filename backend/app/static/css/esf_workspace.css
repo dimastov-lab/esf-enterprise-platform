@@ -1,0 +1,373 @@
+/* =========================================================================
+   ESF editor workspace chrome — Module 32 (Fullscreen Editor Workspace).
+   EDIT MODE ONLY. Every rule is scoped under `.mode-edit` (or .ws*), so
+   view / public / pdf output stays byte-identical. The STI-007 document
+   (.esf-doc) is never restyled here — it keeps its fixed A4 width and
+   centers itself inside the scrollable canvas.
+   ========================================================================= */
+
+/* The edit page becomes a full-window app: fixed toolbar + status bar,
+   the document scrolls in the middle. */
+.mode-edit { height: 100vh; overflow: hidden; background: #f6f7f9; }  /* almost-white, Office-like */
+
+.ws {
+  display: flex; flex-direction: column;
+  height: 100vh; width: 100vw;
+  font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+}
+
+/* ---- slim, almost-invisible toolbar (≤40px) ---------------------------- */
+.ws-toolbar {
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: 6px;
+  height: 40px; padding: 0 10px;
+  background: #ffffff; border-bottom: 1px solid #eceef1;
+  z-index: 50;
+}
+.ws-brand { font-size: 13px; font-weight: 600; color: #9aa1ab; white-space: nowrap; text-decoration: none; letter-spacing: .02em; }
+.ws-brand:hover { color: #2563eb; }
+.ws-grow { flex: 1; }
+.ws-sep { width: 1px; height: 18px; background: #eceef1; margin: 0 3px; }
+
+.ws-icon, .ws-tbtn {
+  border: 1px solid transparent; background: transparent; color: #4b5563;
+  border-radius: 6px; cursor: pointer; line-height: 1;
+  font-size: 14px; padding: 6px 8px;
+}
+.ws-tbtn { font-size: 12.5px; min-width: 30px; }
+.ws-icon:hover, .ws-tbtn:hover { background: #f0f2f5; color: #1f2937; }
+.ws-icon.on, .ws-tbtn.on { background: #e8f1ff; border-color: #cfe0fb; color: #1d4ed8; }
+
+.ws-search {
+  width: 170px; padding: 5px 10px; border: 1px solid #e1e4e8; border-radius: 7px;
+  font-size: 12.5px; outline: none; background: #fafbfc;
+}
+.ws-search:focus { border-color: #2563eb; background: #fff; box-shadow: 0 0 0 2px rgba(37,99,235,.12); }
+
+/* toolbar reuses .ebtn from esf_form.css; tighten for the 40px bar */
+.ws-toolbar .ebtn { font-size: 12.5px; padding: 5px 11px; }
+.ws-toolbar .autosave { min-width: 80px; font-size: 11.5px; }
+
+/* More (⋯) overflow menu */
+.ws-more { position: relative; display: inline-flex; }
+.ws-more-menu {
+  position: absolute; top: 38px; right: 0; z-index: 60; min-width: 210px;
+  background: #fff; border: 1px solid #e3e6ea; border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0,0,0,.16); padding: 5px;
+}
+.ws-more-menu .wm-item {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%;
+  text-align: left; background: none; border: none; cursor: pointer;
+  padding: 8px 10px; border-radius: 7px; font-size: 13px; color: #1f2430; text-decoration: none;
+}
+.ws-more-menu .wm-item:hover { background: #eef3fa; color: #1d4ed8; }
+.ws-more-menu .wm-item.danger { color: #c0392b; }
+.ws-more-menu .wm-key { color: #aab2bd; font-size: 11px; }
+.ws-more-menu .wm-sep { height: 1px; background: #eef1f4; margin: 4px 2px; }
+
+/* ---- body: left wizard | canvas | right panel -------------------------- */
+.ws-body { flex: 1 1 auto; display: flex; min-height: 0; }
+
+.ws-left, .ws-right {
+  flex: 0 0 auto; background: #fcfdfe; overflow-y: auto;
+}
+.ws-left  { width: 196px; border-right: 1px solid #eceef1; }
+.ws-right { width: 290px; border-left: 1px solid #eceef1; }
+
+.ws-pane-title {
+  font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em;
+  color: #aab2bd; padding: 12px 14px 6px;
+}
+
+/* ---- left panel as a numbered wizard ----------------------------------- */
+.ws-wizard { display: flex; flex-direction: column; padding: 2px 8px 12px; }
+.ws-wizard a {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 9px; margin: 1px 0; border-radius: 8px;
+  font-size: 13px; color: #374151; text-decoration: none; cursor: pointer;
+  border-left: 3px solid transparent;
+}
+.ws-wizard a:hover { background: #f1f4f8; }
+.ws-wizard a.active { background: #eaf3ff; color: #1d4ed8; border-left-color: #2563eb; font-weight: 600; }
+.ws-wizard .wz-num {
+  flex: 0 0 auto; width: 19px; height: 19px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 11px; font-style: normal; font-weight: 600;
+  background: #eceef1; color: #6b7280; border: 1px solid #e1e4e8;
+}
+.ws-wizard .wz-label { flex: 1; }
+.ws-wizard .wz-state { flex: 0 0 auto; width: 14px; text-align: center; font-style: normal; font-size: 11px; font-weight: 700; }
+.ws-wizard a.st-done .wz-num { background: #e7f6ee; color: #1e7a44; border-color: #b6e2c8; }
+.ws-wizard a.st-done .wz-state { color: #1e7a44; }
+.ws-wizard a.st-warn .wz-num { background: #fdf1dd; color: #b45309; border-color: #f0cd8e; }
+.ws-wizard a.st-warn .wz-state { color: #b45309; }
+.ws-wizard a.active .wz-num { background: #2563eb; color: #fff; border-color: #2563eb; }
+
+/* ---- canvas: minimal padding so the document dominates ----------------- */
+.ws-canvas {
+  flex: 1 1 auto; min-width: 0; overflow: auto;
+  padding: 10px 16px 24px; scroll-behavior: smooth;
+}
+/* the document keeps its own width + margin:auto (from esf_form.css) so it
+   stays centered and never stretches; the canvas just provides the scroll. */
+
+/* validation banners live inside the canvas, sized to the document width */
+.mode-edit .val-errors, .mode-edit .val-ok { margin-left: auto; margin-right: auto; }
+
+/* ---- right productivity panel ------------------------------------------ */
+.ws-card { border-bottom: 1px solid #eef1f4; padding: 12px 14px; }
+.ws-card:last-child { border-bottom: none; }
+.ws-card h4 {
+  margin: 0 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .03em;
+  color: #6b7280; font-weight: 600;
+}
+.ws-qa { display: flex; flex-wrap: wrap; gap: 6px; }
+.ws-qa .ebtn, .ws-qa button, .ws-qa a {
+  font-size: 12px; padding: 6px 10px; border: 1px solid #c3c9d2; border-radius: 7px;
+  background: #fff; color: #222; cursor: pointer; text-decoration: none;
+}
+.ws-qa .ebtn.primary { background: #16a34a; color: #fff; border-color: #16a34a; }
+.ws-qa .ebtn.save { background: #2563eb; color: #fff; border-color: #2563eb; }
+
+.ws-validation .v-ok  { color: #1e7a44; font-size: 13px; }
+.ws-validation .v-err { color: #9b1c1c; font-size: 13px; }
+.ws-validation .v-idle{ color: #9aa1ab; font-size: 13px; }
+.ws-validation ul { margin: 6px 0 0; padding-left: 16px; font-size: 12px; color: #9b1c1c; }
+.ws-validation li { margin: 2px 0; }
+
+.ws-recent { list-style: none; margin: 0; padding: 0; }
+.ws-recent li { padding: 7px 0; border-bottom: 1px solid #f2f4f7; }
+.ws-recent li:last-child { border-bottom: none; }
+.ws-recent .r-inn { font-weight: 700; color: #1d4ed8; font-size: 12px; }
+.ws-recent .r-name { font-size: 12px; color: #1b1f24; display: block; margin: 1px 0 4px; }
+.ws-recent .r-fill { display: flex; gap: 6px; }
+.ws-recent .r-fill button {
+  font-size: 11px; padding: 3px 8px; border: 1px solid #cfd8e3; border-radius: 6px;
+  background: #f7faff; color: #1d4ed8; cursor: pointer;
+}
+.ws-recent .r-fill button:hover { background: #eaf3ff; }
+.ws-hint { font-size: 12px; color: #9aa1ab; font-style: italic; }
+
+/* ---- bottom status bar (always visible) -------------------------------- */
+.ws-status {
+  flex: 0 0 auto;
+  display: flex; align-items: center; gap: 14px;
+  height: 28px; padding: 0 14px;
+  background: #1f2937; color: #cbd5e1;
+  font-size: 12px; white-space: nowrap; overflow: hidden;
+}
+.ws-status .s-item { display: inline-flex; align-items: center; gap: 5px; }
+.ws-status .s-grow { flex: 1; }
+.ws-status .s-dot { width: 7px; height: 7px; border-radius: 50%; background: #6b7280; display: inline-block; }
+.ws-status .s-dot.ok { background: #34d399; }
+.ws-status .s-dot.warn { background: #fbbf24; }
+.ws-status .s-dot.err { background: #f87171; }
+.ws-status b { color: #f1f5f9; font-weight: 600; }
+
+/* ---- search hit highlight ---------------------------------------------- */
+.mode-edit .cinp.ws-hit { outline: 2px solid #f59e0b; outline-offset: 1px; background: #fff7e6; }
+
+/* ---- collapsed panels & fullscreen ------------------------------------- */
+.ws.no-left  .ws-left  { display: none; }
+.ws.no-right .ws-right { display: none; }
+.ws.fullscreen .ws-left,
+.ws.fullscreen .ws-right { display: none; }
+
+/* ---- counterparty dropdown floats above everything in the workspace ---- */
+.mode-edit .cp-dropdown { position: fixed; z-index: 2000; }
+
+/* ======================================================================
+   Module 33 — editor productivity (live calc, smart table, palette).
+   Edit mode only.
+   ====================================================================== */
+
+/* row number + delete in the goods table's first column */
+.mode-edit table.goods .rownum { font-size: 8px; color: #6b7280; margin-right: 2px; }
+.mode-edit table.goods tr.item:hover td { background: #f5faff; }
+.mode-edit table.goods tr.item.row-selected td { background: #e8f1ff; }
+.mode-edit table.goods tr.item.dragging { opacity: .45; }
+.mode-edit table.goods td.ctr:first-child { cursor: grab; }
+
+/* right-click context menu */
+.ctx-menu {
+  position: fixed; z-index: 3000; min-width: 220px;
+  background: #fff; border: 1px solid #d1d5db; border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.18); padding: 5px;
+  font-family: -apple-system, Arial, sans-serif; font-size: 13px;
+}
+.ctx-menu .ctx-item { padding: 7px 10px; border-radius: 6px; cursor: pointer; white-space: nowrap; color: #1b1f24; }
+.ctx-menu .ctx-item:hover { background: #eaf3ff; color: #1d4ed8; }
+.ctx-menu .ctx-sep { height: 1px; background: #eef1f4; margin: 4px 2px; }
+
+/* command palette (Ctrl/Cmd+K) */
+.cmdk {
+  position: fixed; inset: 0; z-index: 4000; display: none;
+  align-items: flex-start; justify-content: center;
+  background: rgba(17,24,39,.38); padding-top: 12vh;
+  font-family: -apple-system, Arial, sans-serif;
+}
+.cmdk-box {
+  width: min(620px, 92vw); background: #fff; border-radius: 12px;
+  box-shadow: 0 24px 60px rgba(0,0,0,.35); overflow: hidden;
+}
+.cmdk-input {
+  width: 100%; border: none; outline: none; padding: 16px 18px;
+  font-size: 16px; border-bottom: 1px solid #eef1f4;
+}
+.cmdk-list { max-height: 50vh; overflow-y: auto; padding: 6px; }
+.cmdk-item {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 9px 12px; border-radius: 8px; cursor: pointer; font-size: 14px; color: #1b1f24;
+}
+.cmdk-item.active, .cmdk-item:hover { background: #eaf3ff; color: #1d4ed8; }
+.cmdk-tag { font-size: 11px; color: #9aa1ab; margin-left: 12px; }
+.cmdk-item.active .cmdk-tag { color: #6aa9e9; }
+.cmdk-empty { padding: 16px; text-align: center; color: #9aa1ab; font-size: 14px; }
+
+/* auto-recovery banner */
+.recover-bar {
+  max-width: 1056px; margin: 0 auto 12px;
+  display: flex; align-items: center; gap: 10px;
+  background: #fff7e6; border: 1px solid #efb45f; border-radius: 8px;
+  padding: 10px 14px; font-family: -apple-system, Arial, sans-serif;
+  font-size: 13px; color: #92500e;
+}
+.recover-bar span { flex: 1; }
+
+/* ---- responsive: laptop / desktop / ultra-wide ------------------------- */
+@media (max-width: 1100px) {
+  .ws-left  { width: 180px; }
+  .ws-right { width: 250px; }
+}
+@media (max-width: 880px) {
+  .ws.auto-collapse .ws-left,
+  .ws.auto-collapse .ws-right { display: none; }
+}
+@media (min-width: 1900px) {
+  .ws-left  { width: 240px; }
+  .ws-right { width: 340px; }
+  .ws-canvas { padding: 28px; }
+}
+
+/* ======================================================================
+   Module 9 — Validation Center: clickable errors + field highlight.
+   Module 19 — local AI assistant findings. Edit mode only.
+   ====================================================================== */
+.val-errors li.val-jump, #ws-valid-body li.val-jump { cursor: pointer; }
+.val-errors li.val-jump:hover { text-decoration: underline; }
+#ws-valid-body li.val-jump:hover { color: #1d4ed8; text-decoration: underline; }
+
+/* highlight the field a validation error points to */
+.mode-edit .cinp.field-flash {
+  outline: none;
+  border-color: #f59e0b !important;
+  background: #fff7e6 !important;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, .45) !important;
+  animation: esf-flash .9s ease;   /* (nit) was 1.6s — felt sluggish */
+}
+@keyframes esf-flash {
+  0%, 30% { box-shadow: 0 0 0 3px rgba(245, 158, 11, .55); }
+  100%    { box-shadow: 0 0 0 3px rgba(245, 158, 11, 0); }
+}
+
+/* AI assistant findings */
+#pan-ai #ai-check { margin-bottom: 8px; }
+.ai-body .ai-list { list-style: none; margin: 6px 0 0; padding: 0; }
+.ai-body .ai-list li { font-size: 12px; line-height: 1.35; padding: 4px 0; border-top: 1px solid #eef1f4; }
+.ai-body .ai-list li.ai-warn { color: #b45309; }
+.ai-body .ai-list li.ai-info { color: #5b6675; }
+
+/* ======================================================================
+   v5.0 Module 6 — Excel-grade goods grid: multi-cell selection highlight.
+   ====================================================================== */
+.mode-edit table.goods .cinp.cell-sel {
+  background: #dbeafe !important;
+  box-shadow: inset 0 0 0 1px #3b82f6;
+}
+.mode-edit table.goods .cinp.cell-sel:focus {
+  background: #ffffff !important;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, .30);
+}
+
+/* ======================================================================
+   Final editor redesign — right-panel tabs, status bar, focus mode, print.
+   ====================================================================== */
+
+/* document-first: trim the document's own top margin inside the canvas */
+.mode-edit .ws-canvas .esf-doc { margin-top: 0; margin-bottom: 16px; }
+
+/* right-panel collapsible tabs (only the active context is shown) */
+.ws-tabs .ws-tabbar { display: flex; gap: 2px; margin-bottom: 8px; }
+.ws-tabs .wt-tab {
+  flex: 1; padding: 6px 4px; font-size: 12px; cursor: pointer;
+  background: #f1f3f5; color: #6b7280; border: 1px solid #e7eaee; border-radius: 7px;
+}
+.ws-tabs .wt-tab:hover { background: #e9edf2; color: #1f2937; }
+.ws-tabs .wt-tab.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+.ws-tabs .wt-panel { margin-top: 2px; }
+
+/* status bar fades into the background (was dark/dominant) */
+.ws-status {
+  background: #fafbfc; color: #8a929c; border-top: 1px solid #eceef1;
+}
+.ws-status b { color: #4b5563; }
+.ws-status .s-dot { background: #c2c8d0; }
+
+/* F11 focus mode — hide both side panels, document is everything */
+.ws.focus-mode .ws-left,
+.ws.focus-mode .ws-right { display: none; }
+
+/* ---- print: only the document, no workspace chrome -------------------- */
+@media print {
+  .mode-edit { height: auto; overflow: visible; background: #fff; }
+  .ws { display: block; height: auto; width: auto; }
+  .ws-toolbar, .ws-left, .ws-right, .ws-status { display: none !important; }
+  .ws-body { display: block; }
+  .ws-canvas { overflow: visible; padding: 0; }
+  .mode-edit .ws-canvas .esf-doc { margin: 0; }
+}
+
+/* ======================================================================
+   Micro-nit polish pass.
+   ====================================================================== */
+.ws-wizard a.st-todo .wz-state { color: #c2c8d0; }   /* incomplete marker: muted, not loud */
+
+/* (nit) printing the EDIT page showed blue input boxes — neutralise them */
+@media print {
+  .mode-edit .cinp {
+    background: transparent !important; border-color: transparent !important;
+    box-shadow: none !important; -webkit-text-fill-color: #000;
+  }
+  .mode-edit .cinp::placeholder { color: transparent !important; }   /* don't print grey hints */
+}
+
+/* (nit) avoid layout shift when the copy buttons flip to "✓ Скопировано" */
+.ws-toolbar #ws-public, .viewer-bar #vb-copy { min-width: 78px; text-align: center; }
+
+/* (nit) clearer keyboard focus ring on toolbar/icon buttons (was none) */
+.ws-icon:focus-visible, .ws-tbtn:focus-visible, .ws-toolbar .ebtn:focus-visible,
+.wt-tab:focus-visible, .wm-item:focus-visible {
+  outline: 2px solid #2563eb; outline-offset: 1px;
+}
+
+/* (nit) keep tab labels on one line so "Вложения" doesn't wrap in a narrow panel */
+.ws-tabs .wt-tab { white-space: nowrap; }
+
+/* ======================================================================
+   EDIT = ONE PAGE, NO SCROLL.
+   The whole STI-007 form is scaled to fit inside the canvas (both width AND
+   height) and centred, so the editing page never scrolls in any direction.
+   The document keeps its real, tested layout (no overlapping fields); only the
+   zoom changes. JS (esfFitEdit) sets the scale + wrapper size.
+   Scoped to .mode-edit — view / public / pdf are untouched.
+   ====================================================================== */
+.ws-canvas {
+  overflow: hidden;                       /* never scrolls — the form is fit to size */
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  padding: 8px;
+}
+.edit-fit { flex: 0 0 auto; }             /* JS sets width/height = scaled document */
+.edit-page { width: var(--doc-w); transform-origin: top left; }
+/* keep the (rare) validation banner from forcing height/scroll */
+.mode-edit .ws-canvas .val-errors, .mode-edit .ws-canvas .val-ok { flex: 0 0 auto; max-width: 96%; }

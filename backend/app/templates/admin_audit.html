@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Журнал аудита — ЭСФ</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #eef0f3; color: #1b1f24;
+           font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; }
+    .wrap { max-width: 1000px; margin: 28px auto; padding: 0 18px; }
+    .top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+    .top h1 { font-size: 20px; font-weight: 600; margin: 0; }
+    .top a { color: #2563eb; text-decoration: none; font-size: 14px; margin-left: 14px; }
+    .card { background: #fff; border: 1px solid #e2e6ea; border-radius: 10px; overflow: hidden; }
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; font-size: 12px; text-transform: uppercase; color: #6b7280;
+         background: #f7f8fa; padding: 9px 12px; border-bottom: 1px solid #e7eaee; }
+    td { padding: 8px 12px; border-bottom: 1px solid #f0f2f5; font-size: 13px; }
+    tr:last-child td { border-bottom: none; }
+    .act { font-weight: 600; }
+    .muted { color: #9aa1ab; }
+    .empty { padding: 40px; text-align: center; color: #9aa1ab; }
+    code { font-size: 12px; color: #374151; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <h1>Журнал аудита</h1>
+      <div>
+        <span class="muted" style="font-size:13px;">{{ username }}</span>
+        <a href="/admin/users">Пользователи</a>
+        <a href="/dashboard">← К документам</a>
+      </div>
+    </div>
+    <div class="card">
+      {% if rows %}
+      <table>
+        <thead><tr><th>Время</th><th>Пользователь</th><th>Действие</th><th>Док.</th><th>IP</th><th>Детали</th></tr></thead>
+        <tbody>
+          {% for r in rows %}
+          <tr>
+            <td class="muted">{{ r.time }}</td>
+            <td>{{ r.user }}</td>
+            <td class="act">{{ r.action }}</td>
+            <td class="muted">{{ r.doc }}</td>
+            <td class="muted">{{ r.ip }}</td>
+            <td><code>{{ r.meta }}</code></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty">Записей пока нет.</div>
+      {% endif %}
+    </div>
+  </div>
+</body>
+</html>

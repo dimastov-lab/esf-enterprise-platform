@@ -1,0 +1,1619 @@
+{#-
+  ESF STI-007 form — single reusable template (Sprint 4R visuals + Sprint 5R binding).
+  modes: edit (bound <input>s) / view / public (static, byte-identical to Sprint 4R).
+  Visual layout for view/public MUST NOT change. Edit adds form bindings only.
+-#}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>СЧЕТ-ФАКТУРА STI-007 — {{ esf.number or 'новый документ' }}</title>
+  <link rel="stylesheet" href="/static/css/esf_form.css">
+  {%- if mode == 'edit' %}<link rel="stylesheet" href="/static/css/esf_workspace.css">{%- endif %}
+</head>
+<body class="esf-body mode-{{ mode }}">
+
+{#- ---------- macros ---------- -#}
+{# edit-mode inputs carry an optional placeholder (ph) and required marker (req).
+   The `req`/placeholder only appear in EDIT mode — view/public/pdf render plain text/boxes. #}
+{% macro innbox(value, n=14, fieldname='', req=false, ph='') -%}
+{%- if mode == 'edit' and fieldname -%}
+<input class="cinp boxin{{ ' req' if req else '' }}" name="{{ fieldname }}" value="{{ value if value is not none else '' }}" placeholder="{{ ph }}">
+{%- else -%}
+{%- set s = (value | string) -%}
+<span class="dboxes">{% for i in range(n) %}<span class="db">{{ s[i] if (s | length) > i else '' }}</span>{% endfor %}</span>
+{%- endif -%}
+{%- endmacro %}
+
+{% macro datebox(v, fieldname='', disp='', req=false) -%}
+{%- if mode == 'edit' and fieldname -%}
+<input class="cinp datein{{ ' req' if req else '' }}" name="{{ fieldname }}" value="{{ disp }}" placeholder="дд.мм.гггг">
+{%- else -%}
+{%- set s = (v | string) -%}
+<span class="datebox">
+  <span class="dgrp"><span class="drow">{% for i in range(0,2) %}<span class="db">{{ s[i] if (s | length) > i else '' }}</span>{% endfor %}</span><span class="dcap">день</span></span>
+  <span class="dgrp"><span class="drow">{% for i in range(2,4) %}<span class="db">{{ s[i] if (s | length) > i else '' }}</span>{% endfor %}</span><span class="dcap">месяц</span></span>
+  <span class="dgrp"><span class="drow">{% for i in range(4,8) %}<span class="db">{{ s[i] if (s | length) > i else '' }}</span>{% endfor %}</span><span class="dcap">год</span></span>
+</span>
+{%- endif -%}
+{%- endmacro %}
+
+{% macro val(value, fieldname='', req=false, ph='') -%}
+{%- if mode == 'edit' and fieldname -%}<input class="cinp{{ ' req' if req else '' }}" name="{{ fieldname }}" value="{{ value if value is not none else '' }}" placeholder="{{ ph }}">{%- else -%}{{ value if value is not none else '' }}{%- endif -%}
+{%- endmacro %}
+
+{% macro rrow(code, label, value, fieldname='', tall=false, req=false, ph='') -%}
+<div class="req-row{{ ' tall' if tall else '' }}">
+  <span class="fcode">{{ code }}</span>
+  <span class="flabel">{{ label }}</span>
+  <span class="fval">{{ val(value, fieldname, req, ph) }}</span>
+</div>
+{%- endmacro %}
+
+{% macro rinn(code, label, inn, fieldname='', req=false) -%}
+<div class="req-row">
+  <span class="fcode">{{ code }}</span>
+  <span class="flabel">{{ label }}</span>
+  <span class="finn right">{{ innbox(inn, 14, fieldname, req, 'цифры ИНН') }}</span>
+</div>
+{%- endmacro %}
+
+{% macro rtax(code, label, codeval, name, fieldname='', code_fieldname='') -%}
+<div class="req-row">
+  <span class="fcode">{{ code }}</span>
+  <span class="flabel">{{ label }}</span>
+  <span class="finn">{{ innbox(codeval, 3, code_fieldname, false, 'код') }}</span>
+  <span class="fval">{{ val(name, fieldname, false, 'наименование органа') }}</span>
+</div>
+{%- endmacro %}
+
+{%- if dev %}
+<div class="dev-bar">
+  DEV PREVIEW · режим:
+  <a href="?mode=view">view</a>·<a href="?mode=edit">edit</a>·<a href="?mode=public">public</a>
+  <span class="cur">(текущий: {{ mode }})</span>
+</div>
+{%- endif %}
+
+{%- if mode == 'edit' %}
+<div class="ws" id="ws">
+  {#- standalone form for the More-menu "Дублировать" action (not nested in #esfform) -#}
+  <form id="dupform" method="post" action="/esf/{{ esf.uuid }}/duplicate" hidden>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  </form>
+
+  {#- ===== slim, almost-invisible toolbar (≤40px). The document is the hero;
+       only the essentials stay visible, the rest live under More (⋯). ===== -#}
+  <div class="ws-toolbar">
+    <button type="button" class="ws-icon" id="ws-toggle-left" title="Шаги" aria-label="Показать/скрыть шаги">☰</button>
+    <a class="ws-brand" href="/dashboard" title="К списку документов">ЭСФ</a>
+    <span id="autosave-status" class="autosave" title="Состояние сохранения" aria-live="polite"></span>
+    <span class="ws-grow"></span>
+    <input type="search" id="ws-search" class="ws-search" placeholder="Поиск…" autocomplete="off" aria-label="Поиск по полям">
+    <span class="ws-sep"></span>
+    <button type="submit" form="esfform" formaction="/esf/{{ esf.uuid }}/validate" class="ebtn" title="Проверить по правилам STI-007">Проверить</button>
+    <button type="submit" form="esfform" formaction="/esf/{{ esf.uuid }}/publish" class="ebtn primary" title="Опубликовать (Ctrl/Cmd+Enter)">Сформировать</button>
+    <button type="button" class="ws-tbtn" id="ws-print" title="Печать (Ctrl/Cmd+P)">Печать</button>
+    <a class="ws-tbtn" href="/pdf/{{ esf.uuid }}.pdf" target="_blank" rel="noopener" title="Открыть PDF">PDF</a>
+    <button type="button" class="ws-tbtn" id="ws-fs" title="Фокус-режим (F11)" aria-label="Фокус-режим">⛶</button>
+    <div class="ws-more" id="ws-more">
+      <button type="button" class="ws-icon" id="ws-more-btn" title="Ещё" aria-label="Ещё" aria-haspopup="true" aria-expanded="false">⋯</button>
+      <div class="ws-more-menu" id="ws-more-menu" hidden>
+        <button type="button" id="ws-save" class="wm-item">💾 Сохранить <span class="wm-key">⌘S</span></button>
+        <button type="submit" form="dupform" class="wm-item">⧉ Дублировать ЭСФ</button>
+        <button type="button" class="wm-item" onclick="esfAddRow()">＋ Строка товара</button>
+        <button type="button" class="wm-item" id="ws-undo">↶ Отменить <span class="wm-key">⌘Z</span></button>
+        <button type="button" class="wm-item" id="ws-redo">↷ Повторить <span class="wm-key">⌘Y</span></button>
+        <button type="button" class="wm-item" id="ws-public">🔗 Копировать ссылку</button>
+        <div class="wm-sep"></div>
+        <a class="wm-item" href="/result/{{ esf.uuid }}">Результат</a>
+        <a class="wm-item" href="/dashboard">К списку документов</a>
+      </div>
+    </div>
+    <button type="button" class="ws-icon" id="ws-toggle-right" title="Панель" aria-label="Показать/скрыть панель">▦</button>
+  </div>
+
+  <div class="ws-body">
+
+    {#- ===== left navigation panel ===== -#}
+    <aside class="ws-left" id="ws-left">
+      <div class="ws-pane-title">Шаги заполнения</div>
+      <nav class="ws-nav ws-wizard" id="ws-nav">
+        <a data-target="sec-document" data-step="doc"><i class="wz-num">1</i><span class="wz-label">Документ</span><i class="wz-state"></i></a>
+        <a data-target="sec-supplier" data-step="supplier"><i class="wz-num">2</i><span class="wz-label">Поставщик</span><i class="wz-state"></i></a>
+        <a data-target="sec-buyer" data-step="buyer"><i class="wz-num">3</i><span class="wz-label">Покупатель</span><i class="wz-state"></i></a>
+        <a data-target="sec-supply" data-step="supply"><i class="wz-num">4</i><span class="wz-label">Реализация</span><i class="wz-state"></i></a>
+        <a data-target="sec-goods" data-step="goods"><i class="wz-num">5</i><span class="wz-label">Товары</span><i class="wz-state"></i></a>
+        <a data-target="sec-totals" data-step="totals"><i class="wz-num">6</i><span class="wz-label">Итоги</span><i class="wz-state"></i></a>
+        <a data-target="sec-footer" data-step="sign"><i class="wz-num">7</i><span class="wz-label">Подпись</span><i class="wz-state"></i></a>
+        <a data-target="pan-validation" data-step="valid"><i class="wz-num">8</i><span class="wz-label">Проверка</span><i class="wz-state"></i></a>
+      </nav>
+    </aside>
+
+    {#- ===== center canvas: the STI-007 document scrolls here, unchanged ===== -#}
+    <main class="ws-canvas" id="ws-canvas">
+      {%- if errors %}
+      <div class="val-errors"><strong>Невозможно сформировать — исправьте:</strong>
+        <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+      </div>
+      {%- endif %}
+      {%- if ok_msg %}<div class="val-ok">✓ {{ ok_msg }}</div>{%- endif %}
+      <form method="post" action="/esf/{{ esf.uuid }}/save" id="esfform">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+{%- endif %}
+
+{%- if mode in ['view', 'public'] %}
+{#- ESF viewer — a minimal, LIGHT, compact toolbar over a white canvas; the
+    document is a centered paper sheet with a soft shadow (see .viewer-* CSS).
+    Zoom: Fit Page (default) · Fit Width · 100/125/150 · ±, remembered.
+    Public shows only zoom (never dominates); owner view adds light actions. -#}
+<div class="viewer-bar">
+  <span class="vb-title">{% if locked %}{% if is_cancelled %}✗ Аннулирован{% else %}✓ Опубликован{% endif %}{% else %}Проверка ЭСФ{% endif %} · № {{ esf.number or '—' }}</span>
+  <span class="vb-spacer"></span>
+  <div class="vb-zoom" id="vb-zoom">
+    <button type="button" class="vb-z" data-z="out" title="Уменьшить (Ctrl/Cmd −)" aria-label="Уменьшить">−</button>
+    <span class="vb-pct" id="vb-pct" aria-live="polite">100%</span>
+    <button type="button" class="vb-z" data-z="in" title="Увеличить (Ctrl/Cmd +)" aria-label="Увеличить">+</button>
+    <span class="vb-div"></span>
+    <button type="button" class="vb-z" data-z="page" title="По странице">По странице</button>
+    <button type="button" class="vb-z" data-z="width" title="По ширине">По ширине</button>
+    <button type="button" class="vb-z" data-z="100">100%</button>
+    <button type="button" class="vb-z" data-z="125">125%</button>
+    <button type="button" class="vb-z" data-z="150">150%</button>
+  </div>
+  <span class="vb-spacer"></span>
+  {%- if locked %}
+  <a class="vb-btn ghost" href="/dashboard" title="К списку (Esc)">← Назад</a>
+  <button type="button" class="vb-btn" onclick="window.print()" title="Печать (Ctrl/Cmd+P)">Печать</button>
+  <a class="vb-btn" href="/pdf/{{ esf.uuid }}.pdf" target="_blank" rel="noopener" title="Открыть PDF">PDF</a>
+  <a class="vb-btn" href="/qr/{{ esf.uuid }}.png" download="esf-{{ esf.number or esf.uuid }}-qr.png" title="Скачать QR">QR</a>
+  <button type="button" class="vb-btn" id="vb-copy" data-link="/esf/check-esf?documentUUID={{ esf.uuid }}" title="Скопировать публичную ссылку">Ссылка</button>
+  <form method="post" action="/esf/{{ esf.uuid }}/duplicate" style="display:inline;margin:0">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="vb-btn" title="Создать копию в черновике (повторный счёт)">⧉ Дублировать</button>
+  </form>
+  {%- if is_published %}
+  <form method="post" action="/esf/{{ esf.uuid }}/correct" style="display:inline;margin:0">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="vb-btn" title="Создать корректировку к этому ЭСФ">✎ Корректировка</button>
+  </form>
+  <form method="post" action="/esf/{{ esf.uuid }}/cancel" style="display:inline;margin:0"
+        onsubmit="return confirm('Аннулировать опубликованный ЭСФ № {{ esf.number }}? Действие необратимо.');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="vb-btn danger" title="Аннулировать ЭСФ">✗ Аннулировать</button>
+  </form>
+  {%- endif %}
+  <a class="vb-btn primary" href="/esf/new" title="Создать новый ЭСФ">+ Новый ЭСФ</a>
+  {%- endif %}
+</div>
+{%- endif %}
+
+{%- if mode in ['view', 'public'] %}<div class="viewer-stage" id="viewer-stage"><div class="viewer-fit" id="viewer-fit"><div class="viewer-page" id="viewer-page">{% endif %}
+{%- if mode == 'edit' %}<div class="edit-fit" id="edit-fit"><div class="edit-page" id="edit-page">{% endif %}
+<div class="esf-doc">
+
+  {#- ===== header band ===== -#}
+  <div class="esf-head" id="sec-document">
+    <div class="h-left">
+      <div class="org-blank">BLANK STI - 007</div>
+      <div>Кыргызская Республика</div>
+    </div>
+    <div class="h-center">
+      <div class="t1">СЧЕТ-ФАКТУРА</div>
+      <div class="t2">в виде электронного документа на товары</div>
+    </div>
+    <div class="h-right">
+      <div class="ap">{{ esf.appendix }}</div>
+      <div class="sheet">НОМЕР ТЕКУЩЕГО ЛИСТА: {{ esf.sheet_no }}</div>
+    </div>
+  </div>
+
+  {#- ===== status row (101 / 102 / 103) ===== -#}
+  <div class="status-row">
+    <div class="status-cell"><span class="fcode">101</span><span class="lab">СТАТУС:</span><span class="strong">{{ esf.status }}</span></div>
+    <div class="status-cell grow"><span class="fcode">102</span><span class="lab">НОМЕР:</span><span class="strong">{{ val(esf.number, 'esf_number') }}</span></div>
+    <div class="status-cell"><span class="fcode">103</span><span class="lab">Дата оформления:</span>{{ datebox(esf.issue_date, 'issue_date', esf.issue_date_disp) }}</div>
+  </div>
+
+  {#- ===== Раздел 1 — requisites ===== -#}
+  <div class="section-title">Раздел 1. «Реквизиты поставщика и покупателя»</div>
+  <div class="req-grid">
+    <div class="req-col" id="sec-supplier">
+      {{ rinn('201', 'Поставщик ИНН', esf.supplier.inn, 'supplier_inn', req=true) }}
+      {{ rrow('202', 'Ф.И.О. ИП/Наименование организации:', esf.supplier.name, 'supplier_name', req=true, ph='наименование организации') }}
+      {{ rinn('203', 'Филиал поставщика ИНН:', esf.supplier.branch_inn, 'supplier_branch_inn') }}
+      {{ rrow('204', 'Наименование филиала:', esf.supplier.branch_name, 'supplier_branch') }}
+      {{ rrow('205', 'Адрес (юридич. и/или фактич.):', esf.supplier.address, 'supplier_address', tall=true, ph='адрес') }}
+      {{ rtax('206', 'Код и наименование налогового органа', esf.supplier.tax_office_code, esf.supplier.tax_office_name, 'supplier_tax_office', 'supplier_tax_office_code') }}
+      {{ rrow('207', 'Наименование банка и код (БИК):', esf.supplier.bank, 'supplier_bank') }}
+      {{ rrow('208', 'Счет в банке:', esf.supplier.account, 'supplier_account') }}
+    </div>
+    <div class="req-col" id="sec-buyer">
+      {{ rinn('301', 'Покупатель ИНН', esf.buyer.inn, 'buyer_inn', req=true) }}
+      {{ rrow('302', 'Ф.И.О. ИП/Наименование организации:', esf.buyer.name, 'buyer_name', req=true, ph='наименование организации') }}
+      {{ rinn('303', 'Филиал покупателя ИНН:', esf.buyer.branch_inn, 'buyer_branch_inn') }}
+      {{ rrow('304', 'Наименование филиала:', esf.buyer.branch_name, 'buyer_branch') }}
+      {{ rrow('305', 'Адрес (юридич. и/или фактич.):', esf.buyer.address, 'buyer_address', tall=true, ph='адрес') }}
+      {{ rrow('306', 'Код и наименование налогового органа/страны:', esf.buyer.tax_office_name, 'buyer_tax_office') }}
+      {{ rrow('307', 'Наименование банка и код (БИК):', esf.buyer.bank, 'buyer_bank') }}
+      {{ rrow('308', 'Счет в банке:', esf.buyer.account, 'buyer_account') }}
+    </div>
+  </div>
+
+  {#- ===== Раздел 2 — supply info ===== -#}
+  <div class="section-title" id="sec-supply">Раздел 2. «Информация о реализации»</div>
+  <div class="supply">
+    <div class="supply-row">
+      <div class="supply-cell"><span class="fcode">401</span><span class="lab">Дата поставки:</span>{{ datebox(esf.supply.date, 'supply_date', esf.supply.date_disp) }}</div>
+      <div class="supply-cell grow"><span class="fcode">402</span><span class="lab">Вид поставки:</span>{{ val(esf.supply.type, 'supply_type') }}</div>
+      <div class="supply-cell grow"><span class="fcode">403</span><span class="lab">Форма оплаты:</span>{{ val(esf.supply.payment, 'payment_type') }}</div>
+      <div class="supply-cell grow"><span class="fcode">404</span><span class="lab">Примечание:</span>{{ val(esf.supply.note, 'note') }}</div>
+    </div>
+    <div class="supply-row">
+      <div class="supply-cell grow">
+        <span class="fcode">405</span>
+        <span class="lab">Договор (контракт) на реализацию (поставку) работ и услуг:</span>
+        <span class="inline-no">№: {{ val(esf.supply.contract_no, 'contract_number') }}</span>
+        {{ datebox(esf.supply.contract_date, 'contract_date', esf.supply.contract_date_disp) }}
+      </div>
+      <div class="supply-cell">
+        <span class="fcode">406</span>
+        <span class="lab">Корректировка к счету-фактуре:</span>
+        <span class="inline-no">№: {{ val(esf.supply.correction_no, 'correction_number') }}</span>
+        {{ datebox(esf.supply.correction_date, 'correction_date', esf.supply.correction_date_disp) }}
+      </div>
+      <div class="supply-cell grow"><span class="fcode">407</span><span class="lab">Причина корректировки:</span>{{ val(esf.supply.correction_reason, 'correction_reason') }}</div>
+    </div>
+  </div>
+
+  {#- ===== Раздел 3 — goods ===== -#}
+  <div class="section-title" id="sec-goods">Раздел 3. «Информация о товаре»</div>
+  <div class="cur-strip">
+    <div class="cur-item"><span class="v">{{ val(esf.currency_code, 'currency_code', req=true, ph='643') }}</span><div class="c">Код валюты</div></div>
+    <div class="cur-item"><span class="v">{{ val(esf.currency_rate, 'currency_rate', ph='курс') }}</span><div class="c">Курс валюты</div></div>
+    <div class="trace"><span class="checkbox"></span> Товар, подлежащий прослеживаемости</div>
+  </div>
+
+  <table class="goods">
+    <colgroup>
+      <col style="width:2.5%"><col style="width:7%"><col style="width:20%">
+      <col style="width:6%"><col style="width:7%"><col style="width:7%">
+      <col style="width:9%"><col style="width:4%"><col style="width:6%">
+      <col style="width:4%"><col style="width:6%"><col style="width:9%">
+      <col style="width:12.5%">
+    </colgroup>
+    <thead>
+      <tr>
+        <th rowspan="2">№<br>п/п</th>
+        <th rowspan="2">Код товара</th>
+        <th rowspan="2">Наименование товара</th>
+        <th rowspan="2">Единица<br>измерения</th>
+        <th rowspan="2">Цена за<br>единицу</th>
+        <th rowspan="2">Количество<br>(объем)</th>
+        <th rowspan="2">Стоимость<br>товара без<br>НДС и НсП</th>
+        <th colspan="2">НДС</th>
+        <th colspan="2">НсП</th>
+        <th rowspan="2">Общая<br>стоимость<br>товара</th>
+        <th rowspan="2">Реквизиты<br>таможенной<br>декларации или ЭСФ</th>
+      </tr>
+      <tr>
+        <th>Ставка</th><th>Сумма</th><th>Ставка</th><th>Сумма</th>
+      </tr>
+    </thead>
+    <tbody id="esf-items">
+      {% for it in esf['items'] %}
+      <tr class="item">
+        <td class="ctr">{% if mode == 'edit' %}<span class="rownum"></span><button type="button" class="rowdel" onclick="esfDelRow(this)" title="Удалить строку">×</button>{% else %}{{ it.row }}{% endif %}</td>
+        <td class="ctr">{{ val(it.code, 'item_tnved', ph='ТН ВЭД') }}</td>
+        <td class="left">{{ val(it.name, 'item_name', req=true, ph='наименование товара') }}</td>
+        <td class="ctr">{{ val(it.unit, 'item_unit', req=true, ph='ед.') }}</td>
+        <td class="num">{{ val(it.price, 'item_price', req=true, ph='0.00') }}</td>
+        <td class="num">{{ val(it.qty, 'item_qty', req=true, ph='0') }}</td>
+        <td class="num calc-amount">{{ it.amount }}</td>
+        <td class="ctr">{{ val(it.vat_rate, 'item_vat_rate') }}</td>
+        <td class="num">{{ val(it.vat_amount, 'item_vat_amount') }}</td>
+        <td class="ctr">{{ it.nsp_rate }}</td>
+        <td class="num">{{ val(it.nsp_amount, 'item_nsp') }}</td>
+        <td class="num calc-total">{{ it.total }}</td>
+        <td class="left">{{ val(it.customs, 'item_customs') }}</td>
+      </tr>
+      {% endfor %}
+      <tr class="tot" id="sec-totals">
+        <td class="tot-label" colspan="6">Итого по листу:</td>
+        <td class="num calc-sheet-net">{{ esf.totals.sheet_net }}</td>
+        <td class="xmark">X</td><td class="num calc-sheet-vat">{{ esf.totals.sheet_vat }}</td>
+        <td class="xmark">X</td><td class="num calc-sheet-nsp">{{ esf.totals.sheet_nsp }}</td>
+        <td class="num calc-sheet-total">{{ esf.totals.sheet_total }}</td>
+        <td class="xmark">X</td>
+      </tr>
+      <tr class="tot">
+        <td class="tot-label" colspan="6">Итого по счету-фактуре:</td>
+        <td class="num calc-inv-net">{{ esf.totals.inv_net }}</td>
+        <td class="xmark">X</td><td class="num calc-inv-vat">{{ esf.totals.inv_vat }}</td>
+        <td class="xmark">X</td><td class="num calc-inv-nsp">{{ esf.totals.inv_nsp }}</td>
+        <td class="num calc-inv-total">{{ esf.totals.inv_total }}</td>
+        <td class="xmark">X</td>
+      </tr>
+      <tr class="tot">
+        <td class="tot-label" colspan="6">Итого в иностранной валюте:</td>
+        <td class="num calc-cur-net">{{ esf.totals.currency_net }}</td>
+        <td></td><td></td><td></td><td></td>
+        <td class="num calc-cur-total">{{ esf.totals.currency_total }}</td>
+        <td></td>
+      </tr>
+    </tbody>
+  </table>
+
+  {#- ===== official STI-007 footer: QR cell | signatory block (450) =====
+       Two document cells, exactly like the reference. The QR lives in the
+       bottom-left cell and participates in normal grid layout (never absolutely
+       positioned); the signatory block (450 + Ф.И.О. + дата/время подписания)
+       begins immediately to its right. Identical in edit/view/public/pdf —
+       only the QR content differs (placeholder while draft, real QR once
+       published). -#}
+  <div class="esf-foot" id="sec-footer">
+    <div class="qr-box">
+      {%- if esf.published and esf.qr_url %}<img class="qr-img" src="{{ esf.qr_url }}" alt="QR-код для проверки документа">
+      {%- else %}<div class="qr-ph">QR-код<br>(после публикации)</div>{%- endif %}
+    </div>
+    <div class="sign">
+      <span class="fcode">450</span>
+      <span class="slabel">Ф.И.О. руководителя организации или индивидуального предпринимателя или бухгалтера или налогового представителя</span>
+    </div>
+    <div class="sign-name">{{ val(esf.signature.name, 'director_name', req=true, ph='Ф.И.О. руководителя') }}</div>
+    <div class="ts">{{ esf.timestamp }}</div>
+  </div>
+
+</div>
+{%- if mode in ['view', 'public'] %}</div></div></div>{% endif %}
+{%- if mode == 'edit' %}</div></div>{% endif %}
+
+{%- if mode in ['view', 'public'] %}
+<script>
+  /* ESF viewer zoom engine: Fit Page (default) · Fit Width · 100/125/150 · ±,
+     remembers the last zoom, keeps the page centered, never distorts A4
+     proportions (uniform scale). Used by view + public; absent in edit/pdf. */
+  (function(){
+    var stage = document.getElementById('viewer-stage');
+    var fit = document.getElementById('viewer-fit');
+    var page = document.getElementById('viewer-page');
+    var doc = page && page.querySelector('.esf-doc');
+    if (stage && fit && page && doc){
+      var DOC_W = 1056;                       // A4-landscape design width (--doc-w)
+      var PAD = 80;                           // breathing room around the page
+      var MIN = 0.25, MAX = 4;
+      var SKEY = 'esf_viewer_zoom';           // {mode:'page|width|custom', level:Number}
+      var state = load();
+
+      function load(){
+        try { var s = JSON.parse(localStorage.getItem(SKEY)); if (s && s.mode) return s; } catch (_) {}
+        return { mode: 'page', level: 1 };    // default: Fit Page on first open
+      }
+      function save(){ try { localStorage.setItem(SKEY, JSON.stringify(state)); } catch (_) {} }
+
+      function natural(){ page.style.transform = 'none'; fit.style.width=''; fit.style.height='';
+        return { w: DOC_W, h: doc.offsetHeight }; }
+      function fitWidthZoom(n){ return (stage.clientWidth - PAD) / n.w; }
+      // Fit Page = whole page visible, but never upscaled past 100% — so on roomy
+      // screens it shows the natural-size sheet centered with large margins (the
+      // official look); only shrinks to fit on smaller screens.
+      function fitPageZoom(n){ return Math.min((stage.clientWidth - PAD) / n.w, (stage.clientHeight - PAD) / n.h, 1.0); }
+
+      function resolve(n){
+        if (state.mode === 'width') return fitWidthZoom(n);
+        if (state.mode === 'page') return fitPageZoom(n);
+        return state.level;                   // custom (100% / ± / remembered)
+      }
+      function apply(){
+        var n = natural();
+        var z = Math.max(MIN, Math.min(resolve(n), MAX));
+        page.style.transformOrigin = 'top left';
+        page.style.transform = 'scale(' + z + ')';
+        fit.style.width = (n.w * z) + 'px';
+        fit.style.height = (n.h * z) + 'px';
+        var pct = document.getElementById('vb-pct'); if (pct) pct.textContent = Math.round(z * 100) + '%';
+        var zb = document.getElementById('vb-zoom');
+        if (zb) zb.querySelectorAll('.vb-z').forEach(function(b){
+          var a = b.getAttribute('data-z'), on = false;
+          if (a === 'width') on = state.mode === 'width';
+          else if (a === 'page') on = state.mode === 'page';
+          else if (a === '100') on = state.mode === 'custom' && Math.abs(z - 1) < 0.005;
+          else if (a === '125') on = state.mode === 'custom' && Math.abs(z - 1.25) < 0.005;
+          else if (a === '150') on = state.mode === 'custom' && Math.abs(z - 1.5) < 0.005;
+          b.classList.toggle('active', on);
+        });
+        return z;
+      }
+      function setCustom(z){ state = { mode: 'custom', level: Math.max(MIN, Math.min(z, MAX)) }; apply(); save(); }
+      function setMode(m){ state = { mode: m, level: 1 }; var z = apply(); if (m !== 'page' && m !== 'width') state.level = z; save(); }
+
+      var zb = document.getElementById('vb-zoom');
+      if (zb) zb.addEventListener('click', function(e){
+        var b = e.target.closest('.vb-z'); if (!b) return;
+        var a = b.getAttribute('data-z');
+        if (a === 'in') setCustom((apply()) * 1.15);
+        else if (a === 'out') setCustom((apply()) / 1.15);
+        else if (a === '100') setCustom(1);
+        else if (a === '125') setCustom(1.25);
+        else if (a === '150') setCustom(1.5);
+        else if (a === 'width') setMode('width');
+        else if (a === 'page') setMode('page');
+      });
+      // keyboard zoom: Ctrl/Cmd +/-/0
+      document.addEventListener('keydown', function(e){
+        if (!(e.ctrlKey || e.metaKey)) return;
+        if (e.key === '=' || e.key === '+') { e.preventDefault(); setCustom(apply() * 1.15); }
+        else if (e.key === '-') { e.preventDefault(); setCustom(apply() / 1.15); }
+        else if (e.key === '0') { e.preventDefault(); setCustom(1); }
+      });
+
+      apply();
+      window.addEventListener('resize', apply);
+      window.addEventListener('load', apply);          // re-fit once images settle
+      if (document.fonts && document.fonts.ready) document.fonts.ready.then(apply);
+    }
+    {%- if locked %}
+    document.addEventListener('keydown', function(e){ if (e.key === 'Escape') location.href = '/dashboard'; });
+    {%- endif %}
+    var c = document.getElementById('vb-copy');
+    if (c) c.addEventListener('click', function(){
+      var url = location.origin + c.getAttribute('data-link');
+      var done = function(){ var t = c.textContent; c.textContent = '✓ Скопировано'; setTimeout(function(){ c.textContent = t; }, 1400); };
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, function(){ window.prompt('Ссылка:', url); });
+      else window.prompt('Ссылка:', url);
+    });
+  })();
+</script>
+{%- endif %}
+
+{%- if mode == 'edit' %}
+      </form>
+    </main>
+
+    {#- ===== right productivity panel ===== -#}
+    <aside class="ws-right" id="ws-right">
+      <div class="ws-card ws-validation" id="pan-validation">
+        <h4>Проверка</h4>
+        <div id="ws-valid-body">
+          {%- if errors %}<span class="v-err">Ошибок: {{ errors | length }}</span>
+            <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+          {%- elif ok_msg %}<span class="v-ok">✓ Документ прошёл проверку</span>
+          {%- else %}<span class="v-idle">Нажмите «Проверить», чтобы проверить документ.</span>{%- endif %}
+        </div>
+      </div>
+
+      <div class="ws-card">
+        <h4>Недавние контрагенты</h4>
+        <ul class="ws-recent" id="ws-recent"><li class="ws-hint">Загрузка…</li></ul>
+      </div>
+
+      <div class="ws-card">
+        <h4>Недавние товары</h4>
+        <ul class="ws-recent" id="ws-goods"><li class="ws-hint">Загрузка…</li></ul>
+      </div>
+
+      {#- secondary tools: collapsed into tabs, only the active one is shown -#}
+      <div class="ws-card ws-tabs" id="ws-tabs">
+        <div class="ws-tabbar" role="tablist">
+          <button type="button" class="wt-tab active" data-tab="ai">ИИ</button>
+          <button type="button" class="wt-tab" data-tab="history">История</button>
+          <button type="button" class="wt-tab" data-tab="attach">Вложения</button>
+          <button type="button" class="wt-tab" data-tab="danger">Опасно</button>
+        </div>
+        <div class="wt-panel" data-tab="ai" id="pan-ai">
+          <button type="button" class="ebtn" id="ai-check">Проверить документ</button>
+          <div id="ai-body" class="ai-body ws-hint">Локальная проверка: аномалии, дубликаты, совпадения, итоги. Данные не покидают браузер.</div>
+        </div>
+        <div class="wt-panel" data-tab="history" id="pan-history" hidden>
+          <div class="ws-qa">
+            <a class="ebtn" href="/result/{{ esf.uuid }}">Результат</a>
+            <a class="ebtn" href="/dashboard">К списку</a>
+            {%- if is_admin %}<a class="ebtn" href="/admin/audit">Аудит</a>{%- endif %}
+          </div>
+        </div>
+        <div class="wt-panel" data-tab="attach" hidden>
+          <div class="ws-hint">Вложения (договоры, ТТН, сканы) — в следующей версии.</div>
+        </div>
+        <div class="wt-panel" data-tab="danger" hidden>
+          <form method="post" action="/esf/{{ esf.uuid }}/delete" onsubmit="return confirm('Удалить документ безвозвратно? Это действие необратимо.');">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="ebtn danger">Удалить документ</button>
+          </form>
+        </div>
+      </div>
+    </aside>
+
+  </div>{# /ws-body #}
+
+  {#- ===== bottom status bar (always visible) ===== -#}
+  <div class="ws-status">
+    <span class="s-item"><span class="s-dot" id="ws-st-dot"></span><span id="ws-st-autosave">Изменений нет</span></span>
+    <span class="s-item" id="ws-st-valid">
+      {%- if errors %}⚠ Ошибок: {{ errors | length }}{%- elif ok_msg %}✓ Проверен{%- else %}Не проверялся{%- endif %}</span>
+    <span class="s-item">Раздел: <b id="ws-st-section">Документ</b></span>
+    <span class="s-grow"></span>
+    <span class="s-item">Статус: <b>{{ status_label }}</b></span>
+    <span class="s-item">№ <b>{{ esf.number or '—' }}</b></span>
+    <span class="s-item">{{ username }}</span>
+  </div>
+
+</div>{# /ws #}
+{%- endif %}
+
+{%- if mode == 'edit' %}
+<script>
+  // markup for one editable goods row (shared by add / duplicate / insert)
+  function esfRowHTML(){
+    return '<td class="ctr"><span class="rownum"></span><button type="button" class="rowdel" onclick="esfDelRow(this)" title="Удалить строку">×</button></td>' +
+      '<td class="ctr"><input class="cinp" name="item_tnved" placeholder="ТН ВЭД"></td>' +
+      '<td class="left"><input class="cinp req" name="item_name" placeholder="наименование товара"></td>' +
+      '<td class="ctr"><input class="cinp req" name="item_unit" placeholder="ед."></td>' +
+      '<td class="num"><input class="cinp req" name="item_price" placeholder="0.00"></td>' +
+      '<td class="num"><input class="cinp req" name="item_qty" placeholder="0"></td>' +
+      '<td class="num calc-amount"></td>' +
+      '<td class="ctr"><input class="cinp" name="item_vat_rate"></td>' +
+      '<td class="num"><input class="cinp" name="item_vat_amount"></td>' +
+      '<td class="ctr">0</td>' +
+      '<td class="num"><input class="cinp" name="item_nsp"></td>' +
+      '<td class="num calc-total"></td>' +
+      '<td class="left"><input class="cinp" name="item_customs"></td>';
+  }
+  function esfNewRow(){ var tr = document.createElement('tr'); tr.className = 'item'; tr.innerHTML = esfRowHTML(); return tr; }
+  function esfDelRow(btn){
+    var tb = document.getElementById('esf-items');
+    if (tb.querySelectorAll('tr.item').length <= 1){    // never leave zero rows
+      var only = btn.closest('tr');
+      only.querySelectorAll('input.cinp').forEach(function(i){ i.value = ''; });
+    } else {
+      var tr = btn.closest('tr'); if (tr) tr.parentNode.removeChild(tr);
+    }
+    window.esfRenumber && window.esfRenumber();
+    window.esfRecalc && window.esfRecalc();
+    window.esfDirty && window.esfDirty();
+  }
+  function esfAddRow(){
+    var tb = document.getElementById('esf-items');
+    var tr = esfNewRow();
+    tb.insertBefore(tr, tb.querySelector('tr.tot'));
+    window.esfRenumber && window.esfRenumber();
+    var first = tr.querySelector('input'); if (first) first.focus();
+    window.esfDirty && window.esfDirty();
+    return tr;
+  }
+
+  // ---- Autosave: on change (debounced ~1.5s) and every 10s ----
+  (function(){
+    var form = document.getElementById('esfform');
+    var status = document.getElementById('autosave-status');
+    if (!form) return;
+    var uuid = "{{ esf.uuid }}";
+    var dirty = false, saving = false, soon = null;
+
+    function set(text, cls){ if (status){ status.textContent = text; status.className = 'autosave ' + (cls || ''); } }
+    window.esfDirty = function(){ dirty = true; set('Не сохранено', 'dirty'); schedule(); };
+    function schedule(){ if (soon) clearTimeout(soon); soon = setTimeout(save, 1500); }
+    // explicit save (Ctrl/Cmd+S, "Сохранить") — persists in the background, no
+    // page reload, so scroll position and focus are kept.
+    window.esfSaveNow = function(){ if (soon) clearTimeout(soon); dirty = true; save(); };
+
+    function save(){
+      if (!dirty || saving) return;
+      saving = true; set('Сохранение…', 'saving');
+      fetch('/esf/' + uuid + '/autosave', { method: 'POST', body: new FormData(form),
+            headers: { 'X-Requested-With': 'fetch' } })
+        .then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; })
+                                  .catch(function(){ return { ok: false, j: {} }; }); })
+        .then(function(res){
+          if (res.ok && res.j.ok){ dirty = false; set('Сохранено ' + res.j.saved_at, 'ok'); }
+          else { set(res.j.error ? 'Не сохранено: только чтение' : 'Ошибка сохранения', 'err'); }
+        })
+        .catch(function(){ set('Ошибка сети', 'err'); })
+        .then(function(){ saving = false; });
+    }
+
+    form.addEventListener('input', window.esfDirty);
+    form.addEventListener('change', window.esfDirty);
+    setInterval(function(){ if (dirty) save(); }, 10000);
+  })();
+
+  // ---- Counterparty lookup (Sprint UX-2): search-as-you-type on INN / name ----
+  (function(){
+    var TRIGGERS = ['supplier_inn','supplier_name','buyer_inn','buyer_name'];
+    var FILL = ['inn','name','branch','address','tax_office','bank','account']; // bik has no field
+    var dd = document.createElement('div');
+    dd.className = 'cp-dropdown';
+    document.body.appendChild(dd);
+    var active = -1, items = [], current = null, prefix = null, timer = null;
+
+    function hide(){ dd.style.display = 'none'; active = -1; items = []; current = null; }
+    function place(input){
+      // .cp-dropdown is position:fixed in edit mode, so use viewport coords directly.
+      var r = input.getBoundingClientRect();
+      dd.style.left = r.left + 'px';
+      dd.style.top  = (r.bottom + 2) + 'px';
+      dd.style.minWidth = Math.max(r.width, 280) + 'px';
+    }
+    function setField(name, val){
+      var el = document.querySelector('[name="' + name + '"]');
+      if (el) el.value = val || '';
+    }
+    function fillParty(pfx, cp){
+      FILL.forEach(function(f){ setField(pfx + '_' + f, cp[f]); });
+      if (window.esfDirty) window.esfDirty();
+    }
+    // exposed so the right-panel "recent counterparties" list can fill a party group
+    window.esfFillParty = fillParty;
+    function choose(cp){ fillParty(prefix, cp); hide(); }
+    function render(){
+      dd.innerHTML = '';
+      if (!items.length){
+        dd.innerHTML = '<div class="cp-empty">Контрагент не найден — заполните вручную</div>';
+        return;
+      }
+      items.forEach(function(cp, i){
+        var row = document.createElement('div');
+        row.className = 'cp-item' + (i === active ? ' active' : '');
+        row.innerHTML = '<span class="cp-inn">' + (cp.inn || '') + '</span> ' +
+                        '<span class="cp-name">' + (cp.name || '') + '</span>' +
+                        (cp.address ? '<div class="cp-sub">' + cp.address + '</div>' : '');
+        row.addEventListener('mousedown', function(e){ e.preventDefault(); choose(cp); });
+        dd.appendChild(row);
+      });
+    }
+    function query(input){
+      var q = (input.value || '').trim();
+      if (q.length < 2){ hide(); return; }
+      fetch('/api/counterparties/search?q=' + encodeURIComponent(q), {headers:{'X-Requested-With':'fetch'}})
+        .then(function(r){ return r.ok ? r.json() : {results:[]}; })
+        .then(function(j){
+          items = (j && j.results) || []; active = -1;
+          place(input); render(); dd.style.display = 'block';
+        })
+        .catch(function(){ hide(); });
+    }
+
+    TRIGGERS.forEach(function(name){
+      // delegate: inputs exist at load; attach on focusin/input via document
+      document.addEventListener('input', function(e){
+        if (!e.target || e.target.name !== name) return;
+        current = e.target; prefix = name.split('_')[0];
+        clearTimeout(timer); timer = setTimeout(function(){ query(current); }, 300);
+      });
+    });
+    document.addEventListener('keydown', function(e){
+      if (dd.style.display !== 'block' || !current) return;
+      if (e.key === 'ArrowDown'){ active = Math.min(active + 1, items.length - 1); render(); e.preventDefault(); }
+      else if (e.key === 'ArrowUp'){ active = Math.max(active - 1, 0); render(); e.preventDefault(); }
+      else if (e.key === 'Enter'){ if (active >= 0 && items[active]){ choose(items[active]); e.preventDefault(); } }
+      else if (e.key === 'Escape'){ hide(); }
+    });
+    document.addEventListener('click', function(e){
+      if (e.target !== current && !dd.contains(e.target)) hide();
+    });
+    window.addEventListener('resize', hide);
+    window.addEventListener('scroll', function(){ if (current && dd.style.display === 'block') place(current); }, true);
+  })();
+
+  // ---- Module 32: workspace chrome (nav, panels, fullscreen, undo/redo, search) ----
+  (function(){
+    var ws = document.getElementById('ws');
+    var canvas = document.getElementById('ws-canvas');
+    if (!ws || !canvas) return;
+
+    // -- collapsible panels --
+    function toggle(cls, btn){ ws.classList.toggle(cls); if (btn) btn.classList.toggle('on', ws.classList.contains(cls)); }
+    var bL = document.getElementById('ws-toggle-left');
+    var bR = document.getElementById('ws-toggle-right');
+    if (bL) bL.addEventListener('click', function(){ toggle('no-left', bL); });
+    if (bR) bR.addEventListener('click', function(){ toggle('no-right', bR); });
+    // auto-collapse on small screens at first load
+    if (window.innerWidth < 880) ws.classList.add('auto-collapse');
+
+    // -- left-nav: jump to section + reflect current section --
+    var nav = document.getElementById('ws-nav');
+    var navLinks = nav ? Array.prototype.slice.call(nav.querySelectorAll('a')) : [];
+    var stSection = document.getElementById('ws-st-section');
+    function jump(id){
+      var el = document.getElementById(id);
+      if (!el) return;
+      // right-panel anchors scroll their own panel; document anchors scroll canvas
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    navLinks.forEach(function(a){
+      a.addEventListener('click', function(e){ e.preventDefault(); jump(a.getAttribute('data-target')); });
+    });
+    // highlight the section currently in view
+    var SECTIONS = ['sec-document','sec-supplier','sec-buyer','sec-supply','sec-goods','sec-totals','sec-footer'];
+    var LABELS = { 'sec-document':'Документ','sec-supplier':'Поставщик','sec-buyer':'Покупатель',
+                   'sec-supply':'Реализация','sec-goods':'Товары','sec-totals':'Итоги','sec-footer':'Подпись' };
+    function setActive(id){
+      navLinks.forEach(function(a){ a.classList.toggle('active', a.getAttribute('data-target') === id); });
+      if (stSection && LABELS[id]) stSection.textContent = LABELS[id];
+    }
+    if ('IntersectionObserver' in window){
+      var io = new IntersectionObserver(function(entries){
+        entries.forEach(function(en){ if (en.isIntersecting) setActive(en.target.id); });
+      }, { root: canvas, rootMargin: '-10% 0px -75% 0px', threshold: 0 });
+      SECTIONS.forEach(function(id){ var el = document.getElementById(id); if (el) io.observe(el); });
+    }
+
+    // -- fullscreen toggle (Esc exits; sync class with native fullscreen) --
+    var bFs = document.getElementById('ws-fs');
+    function inFs(){ return document.fullscreenElement === ws; }
+    if (bFs){
+      bFs.addEventListener('click', function(){
+        if (inFs()){ if (document.exitFullscreen) document.exitFullscreen(); }
+        else if (ws.requestFullscreen){ ws.requestFullscreen().catch(function(){ ws.classList.toggle('fullscreen'); bFs.classList.toggle('on'); }); }
+        else { ws.classList.toggle('fullscreen'); bFs.classList.toggle('on'); }
+      });
+      document.addEventListener('fullscreenchange', function(){
+        ws.classList.toggle('fullscreen', inFs());
+        bFs.classList.toggle('on', inFs());
+      });
+    }
+
+    // -- copy public link --
+    var bPub = document.getElementById('ws-public');
+    if (bPub) bPub.addEventListener('click', function(){
+      var url = location.origin + '/esf/check-esf?documentUUID={{ esf.uuid }}';
+      if (navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(url).then(function(){ flash(bPub, '✓'); }, function(){ window.prompt('Публичная ссылка:', url); });
+      } else { window.prompt('Публичная ссылка:', url); }
+    });
+    function flash(btn, txt){ var t = btn.textContent; btn.textContent = txt; setTimeout(function(){ btn.textContent = t; }, 1200); }
+
+    // -- field search: highlight matching inputs, jump to first --
+    var search = document.getElementById('ws-search');
+    if (search){
+      search.addEventListener('input', function(){
+        var q = (search.value || '').trim().toLowerCase();
+        var first = null;
+        canvas.querySelectorAll('.cinp').forEach(function(inp){
+          inp.classList.remove('ws-hit');
+          if (!q) return;
+          var hay = ((inp.value || '') + ' ' + (inp.placeholder || '') + ' ' + (inp.name || '')).toLowerCase();
+          if (hay.indexOf(q) !== -1){ inp.classList.add('ws-hit'); if (!first) first = inp; }
+        });
+        if (first) first.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+      // (nit) Esc clears the field search and its highlights
+      search.addEventListener('keydown', function(e){
+        if (e.key === 'Escape' && search.value){ e.stopPropagation(); search.value = ''; canvas.querySelectorAll('.ws-hit').forEach(function(i){ i.classList.remove('ws-hit'); }); }
+      });
+    }
+
+    // -- undo / redo: snapshot the form state on change --
+    var form = document.getElementById('esfform');
+    var past = [], future = [], last = null, t = null;
+    function snap(){
+      var out = [];
+      form.querySelectorAll('input[name], select[name], textarea[name]').forEach(function(el){
+        if (el.name === 'csrf_token') return;
+        out.push(el.value);
+      });
+      return out.join('');
+    }
+    function restore(state){
+      var vals = state.split('');
+      var els = [];
+      form.querySelectorAll('input[name], select[name], textarea[name]').forEach(function(el){
+        if (el.name !== 'csrf_token') els.push(el);
+      });
+      if (els.length !== vals.length) return false;  // structure changed (rows added/removed) → skip
+      els.forEach(function(el, i){ el.value = vals[i]; });
+      return true;
+    }
+    last = snap();
+    form.addEventListener('input', function(){
+      clearTimeout(t);
+      t = setTimeout(function(){
+        var s = snap();
+        if (s !== last){ past.push(last); last = s; future = []; if (past.length > 100) past.shift(); }
+      }, 500);
+    });
+    var bUndo = document.getElementById('ws-undo'), bRedo = document.getElementById('ws-redo');
+    function doUndo(){ if (!past.length) return; future.push(last); if (restore(past[past.length-1])){ last = past.pop(); if (window.esfDirty) window.esfDirty(); } else { future.pop(); } }
+    function doRedo(){ if (!future.length) return; past.push(last); if (restore(future[future.length-1])){ last = future.pop(); if (window.esfDirty) window.esfDirty(); } else { past.pop(); } }
+    if (bUndo) bUndo.addEventListener('click', doUndo);
+    if (bRedo) bRedo.addEventListener('click', doRedo);
+    document.addEventListener('keydown', function(e){
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey){ doUndo(); e.preventDefault(); }
+      else if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))){ doRedo(); e.preventDefault(); }
+    });
+
+    // -- mirror autosave status into the bottom status bar --
+    var src = document.getElementById('autosave-status');
+    var dst = document.getElementById('ws-st-autosave');
+    var dot = document.getElementById('ws-st-dot');
+    if (src && dst){
+      var mo = new MutationObserver(function(){
+        dst.textContent = src.textContent || 'Изменений нет';
+        if (dot){
+          dot.className = 's-dot';
+          if (src.classList.contains('ok')) dot.classList.add('ok');
+          else if (src.classList.contains('saving')) dot.classList.add('warn');
+          else if (src.classList.contains('dirty')) dot.classList.add('warn');
+          else if (src.classList.contains('err')) dot.classList.add('err');
+        }
+      });
+      mo.observe(src, { childList: true, characterData: true, subtree: true, attributes: true });
+    }
+
+    // -- recent counterparties (right panel) --
+    var recent = document.getElementById('ws-recent');
+    if (recent){
+      fetch('/api/counterparties/recent', { headers: { 'X-Requested-With': 'fetch' } })
+        .then(function(r){ return r.ok ? r.json() : { results: [] }; })
+        .then(function(j){
+          var list = (j && j.results) || [];
+          if (!list.length){ recent.innerHTML = '<li class="ws-hint">Пока нет. Сохранённые контрагенты появятся здесь.</li>'; return; }
+          recent.innerHTML = '';
+          list.forEach(function(cp){
+            var li = document.createElement('li');
+            var inn = document.createElement('span'); inn.className = 'r-inn'; inn.textContent = cp.inn || '';
+            var nm = document.createElement('span'); nm.className = 'r-name'; nm.textContent = cp.name || '';
+            var box = document.createElement('div'); box.className = 'r-fill';
+            ['supplier','buyer'].forEach(function(pfx){
+              var b = document.createElement('button'); b.type = 'button';
+              b.textContent = pfx === 'supplier' ? '→ Поставщик' : '→ Покупатель';
+              b.addEventListener('click', function(){ if (window.esfFillParty) window.esfFillParty(pfx, cp); });
+              box.appendChild(b);
+            });
+            li.appendChild(inn); li.appendChild(nm); li.appendChild(box);
+            recent.appendChild(li);
+          });
+        })
+        .catch(function(){ recent.innerHTML = '<li class="ws-hint">Не удалось загрузить.</li>'; });
+    }
+  })();
+
+  // ===================================================================
+  //  Module 33 — Editor productivity core (V2.5)
+  //  live calc · smart item table · keyboard · command palette ·
+  //  smart formatting · auto-recovery. All client-side; backend stays
+  //  the source of truth (recompute + persist on save).
+  // ===================================================================
+  (function(){
+    var form = document.getElementById('esfform');
+    var tbody = document.getElementById('esf-items');
+    if (!form || !tbody) return;
+    var UUID = "{{ esf.uuid }}";
+    var dirty = function(){ if (window.esfDirty) window.esfDirty(); };
+
+    // ---------- numeric helpers (mirror backend _money/_dec) ----------
+    function num(v){ v = parseFloat(String(v == null ? '' : v).replace(/\s/g, '').replace(',', '.')); return isFinite(v) ? v : 0; }
+    function money(v){ return (Math.round(v * 100) / 100).toFixed(2); }
+    function field(tr, name){ var el = tr.querySelector('[name="' + name + '"]'); return el ? el.value : ''; }
+    function setCell(sel, val){ var el = form.querySelector(sel); if (el) el.textContent = val; }
+
+    // ---------- LIVE CALCULATIONS (Раздел "Live Calculations") --------
+    function recalc(){
+      var sNet = 0, sVat = 0, sNsp = 0;
+      tbody.querySelectorAll('tr.item').forEach(function(tr){
+        var price = num(field(tr, 'item_price')), qty = num(field(tr, 'item_qty'));
+        var amount = price * qty;
+        // auto-compute VAT from the rate (поле «Ставка») — only while the user
+        // hasn't typed their own VAT and only when there's something to tax.
+        var vatEl = tr.querySelector('[name="item_vat_amount"]');
+        var rateEl = tr.querySelector('[name="item_vat_rate"]');
+        if (vatEl && !vatEl.dataset.manual && rateEl && rateEl.value.trim() !== '' && amount > 0) {
+          vatEl.value = money(amount * num(rateEl.value) / 100);
+        }
+        var vat = num(field(tr, 'item_vat_amount')), nsp = num(field(tr, 'item_nsp'));
+        var total = amount + vat + nsp;
+        var any = (price || qty || vat || nsp);
+        var aC = tr.querySelector('.calc-amount'), tC = tr.querySelector('.calc-total');
+        if (aC) aC.textContent = any ? money(amount) : '';
+        if (tC) tC.textContent = any ? money(total) : '';
+        sNet += amount; sVat += vat; sNsp += nsp;
+      });
+      var grand = sNet + sVat + sNsp;
+      var rate = num(form.querySelector('[name="currency_rate"]') && form.querySelector('[name="currency_rate"]').value);
+      setCell('.calc-sheet-net', money(sNet)); setCell('.calc-sheet-vat', money(sVat));
+      setCell('.calc-sheet-nsp', money(sNsp)); setCell('.calc-sheet-total', money(grand));
+      setCell('.calc-inv-net', money(sNet)); setCell('.calc-inv-vat', money(sVat));
+      setCell('.calc-inv-nsp', money(sNsp)); setCell('.calc-inv-total', money(grand));
+      var cur = rate ? money(grand / rate) : '';
+      setCell('.calc-cur-net', cur); setCell('.calc-cur-total', cur);
+    }
+    window.esfRecalc = recalc;
+    function renumber(){ var i = 0; tbody.querySelectorAll('tr.item').forEach(function(tr){ i++; var n = tr.querySelector('.rownum'); if (n) n.textContent = i; }); }
+    window.esfRenumber = renumber;
+    // VAT amounts already present on load were entered/approved before — treat
+    // them as manual so auto-fill never overwrites saved figures.
+    tbody.querySelectorAll('[name="item_vat_amount"]').forEach(function(el){ if (el.value.trim() !== '') el.dataset.manual = '1'; });
+    form.addEventListener('input', function(e){
+      var t = e.target, n = (t && t.name) || '';
+      if (n === 'item_vat_amount') { if (t.value.trim() === '') delete t.dataset.manual; else t.dataset.manual = '1'; }  // user override (cleared → auto resumes)
+      if (n.indexOf('item_') === 0 || n === 'currency_rate') recalc();
+    });
+
+    // ---------- SMART ITEM TABLE -------------------------------------
+    function rowValues(tr){ var o = {}; tr.querySelectorAll('input.cinp').forEach(function(i){ o[i.name] = i.value; }); return o; }
+    function applyValues(tr, o){ tr.querySelectorAll('input.cinp').forEach(function(i){ if (o[i.name] != null) i.value = o[i.name]; }); }
+    function insertRow(refTr, where, values){
+      var tr = esfNewRow();
+      if (where === 'above') refTr.parentNode.insertBefore(tr, refTr);
+      else refTr.parentNode.insertBefore(tr, refTr.nextSibling);
+      if (values) applyValues(tr, values);
+      bindRow(tr); renumber(); recalc(); dirty();
+      return tr;
+    }
+    function duplicateRow(tr){ var t = insertRow(tr, 'below', rowValues(tr)); var f = t.querySelector('input'); if (f) f.focus(); return t; }
+    var rowClip = null;
+
+    // selection (mass operations)
+    var selected = new Set();
+    function selRows(){ return Array.prototype.slice.call(tbody.querySelectorAll('tr.item.row-selected')); }
+    function toggleSelect(tr, additive){
+      if (!additive) { tbody.querySelectorAll('tr.item.row-selected').forEach(function(r){ r.classList.remove('row-selected'); }); }
+      tr.classList.toggle('row-selected');
+    }
+
+    // Tab in the last cell of the last row creates the next row
+    tbody.addEventListener('keydown', function(e){
+      if (e.key !== 'Tab' || e.shiftKey) return;
+      var tr = e.target.closest && e.target.closest('tr.item'); if (!tr) return;
+      var inputs = tr.querySelectorAll('input.cinp');
+      var rows = tbody.querySelectorAll('tr.item');
+      if (e.target === inputs[inputs.length - 1] && tr === rows[rows.length - 1]) { e.preventDefault(); esfAddRow(); }
+    });
+    // click the № cell to (multi-)select a row
+    tbody.addEventListener('click', function(e){
+      var cell = e.target.closest('td.ctr'); if (!cell || e.target.closest('input')) return;
+      var tr = cell.closest('tr.item'); if (!tr || cell !== tr.firstElementChild) return;
+      toggleSelect(tr, e.ctrlKey || e.metaKey || e.shiftKey);
+    });
+
+    // context menu
+    var menu = document.createElement('div'); menu.className = 'ctx-menu'; menu.style.display = 'none';
+    document.body.appendChild(menu);
+    var ctxRow = null;
+    function hideMenu(){ menu.style.display = 'none'; }
+    function buildMenu(){
+      var sel = selRows().length;
+      var items = [
+        ['dup', '⧉ Дублировать строку'],
+        ['above', '↑ Вставить строку сверху'],
+        ['below', '↓ Вставить строку снизу'],
+        ['copy', '⎘ Копировать строку'],
+        (rowClip ? ['paste', '📋 Вставить скопированную'] : null),
+        ['del', '✕ Удалить строку']
+      ];
+      if (sel > 1) {
+        items.push(['sep', '']);
+        items.push(['mdup', '⧉ Дублировать выделенные (' + sel + ')']);
+        items.push(['mdel', '✕ Удалить выделенные (' + sel + ')']);
+      }
+      menu.innerHTML = items.filter(Boolean).map(function(it){
+        return it[0] === 'sep' ? '<div class="ctx-sep"></div>'
+          : '<div class="ctx-item" data-act="' + it[0] + '">' + it[1] + '</div>';
+      }).join('');
+    }
+    tbody.addEventListener('contextmenu', function(e){
+      var tr = e.target.closest('tr.item'); if (!tr) return;
+      e.preventDefault(); ctxRow = tr; buildMenu();
+      menu.style.display = 'block';
+      menu.style.left = Math.min(e.clientX, window.innerWidth - 240) + 'px';
+      menu.style.top = Math.min(e.clientY, window.innerHeight - menu.offsetHeight - 8) + 'px';
+    });
+    menu.addEventListener('click', function(e){
+      var it = e.target.closest('.ctx-item'); if (!it || !ctxRow) return;
+      var act = it.getAttribute('data-act');
+      if (act === 'dup') duplicateRow(ctxRow);
+      else if (act === 'above') { var t = insertRow(ctxRow, 'above'); var f = t.querySelector('input'); if (f) f.focus(); }
+      else if (act === 'below') { var b = insertRow(ctxRow, 'below'); var g = b.querySelector('input'); if (g) g.focus(); }
+      else if (act === 'copy') { rowClip = rowValues(ctxRow); }
+      else if (act === 'paste') { insertRow(ctxRow, 'below', rowClip); }
+      else if (act === 'del') { ctxRow.querySelector('.rowdel').click(); }
+      else if (act === 'mdup') { selRows().forEach(function(r){ duplicateRow(r); }); }
+      else if (act === 'mdel') { selRows().forEach(function(r){ r.querySelector('.rowdel').click(); }); }
+      hideMenu();
+    });
+    document.addEventListener('click', function(e){ if (!menu.contains(e.target)) hideMenu(); });
+    document.addEventListener('scroll', hideMenu, true);
+
+    // drag & drop reorder (handle = any non-input cell)
+    var dragSrc = null;
+    function bindRow(tr){
+      if (tr._wired) return; tr._wired = true;
+      tr.setAttribute('draggable', 'true');
+      tr.addEventListener('dragstart', function(e){ if (e.target.closest('input')) { e.preventDefault(); return; } dragSrc = tr; tr.classList.add('dragging'); try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', 'row'); } catch (_) {} });
+      tr.addEventListener('dragend', function(){ tr.classList.remove('dragging'); dragSrc = null; });
+      tr.addEventListener('dragover', function(e){ if (dragSrc) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } });
+      tr.addEventListener('drop', function(e){ if (!dragSrc || dragSrc === tr) return; e.preventDefault(); var r = tr.getBoundingClientRect(); var after = (e.clientY - r.top) > r.height / 2; tbody.insertBefore(dragSrc, after ? tr.nextSibling : tr); renumber(); recalc(); dirty(); });
+    }
+    tbody.querySelectorAll('tr.item').forEach(bindRow);
+    renumber(); recalc();
+
+    // ---------- SMART FORMATTING (light, validation-safe) ------------
+    var DIGIT_FIELDS = /^(supplier_inn|buyer_inn|supplier_branch_inn|buyer_branch_inn|supplier_account|buyer_account)$/;
+    var DATE_FIELDS = /^(issue_date|supply_date|contract_date)$/;
+    form.addEventListener('input', function(e){
+      var t = e.target; if (!t || !t.name) return;
+      if (DIGIT_FIELDS.test(t.name)) {            // (nit) keep caret at the right digit, not a blind c-1
+        var c = t.selectionStart || 0, before = t.value.slice(0, c).replace(/\D/g, '').length;
+        var v = t.value.replace(/\D/g, '');
+        if (v !== t.value) { t.value = v; try { t.setSelectionRange(before, before); } catch (_) {} }
+      }
+    });
+    form.addEventListener('blur', function(e){
+      var t = e.target; if (!t || !t.name) return;
+      if (DATE_FIELDS.test(t.name)) { var d = t.value.replace(/\D/g, ''); if (d.length === 8) t.value = d.slice(0, 2) + '.' + d.slice(2, 4) + '.' + d.slice(4); }
+      if (t.name === 'currency_rate') t.value = t.value.replace(',', '.');
+    }, true);
+
+    // ---------- KEYBOARD PRODUCTIVITY -------------------------------
+    document.addEventListener('keydown', function(e){
+      var mod = e.ctrlKey || e.metaKey;
+      if (mod && e.key.toLowerCase() === 's') { e.preventDefault(); if (window.esfSaveNow) window.esfSaveNow(); else if (form.requestSubmit) form.requestSubmit(); else form.submit(); }
+      else if (mod && e.key === 'Enter') { e.preventDefault(); var p = form.querySelector('button[formaction*="/publish"]') || document.querySelector('button[formaction*="/publish"]'); if (p) p.click(); }
+      else if (mod && e.key.toLowerCase() === 'p') { e.preventDefault(); window.print(); }  /* (nit) Ctrl+P = Print, matching the Print button (PDF has its own button) */
+      else if (mod && e.key.toLowerCase() === 'k') { e.preventDefault(); togglePalette(); }
+      else if (e.key === 'Escape') { hideMenu(); closePalette(); }
+    });
+
+    // ---------- COMMAND PALETTE (Ctrl/Cmd+K) ------------------------
+    var pal = document.createElement('div'); pal.className = 'cmdk'; pal.style.display = 'none';
+    pal.innerHTML = '<div class="cmdk-box"><input class="cmdk-input" type="text" placeholder="Команда или документ…" autocomplete="off"><div class="cmdk-list"></div></div>';
+    document.body.appendChild(pal);
+    var palInput = pal.querySelector('.cmdk-input'), palList = pal.querySelector('.cmdk-list'), palActive = 0, palItems = [];
+    function clickSel(sel){ var el = document.querySelector(sel); if (el) el.click(); }
+    var COMMANDS = [
+      { t: 'Сохранить', k: 'save ctrl s', run: function(){ if (form.requestSubmit) form.requestSubmit(); else form.submit(); } },
+      { t: 'Проверить документ', k: 'validate', run: function(){ clickSel('button[formaction*="/validate"]'); } },
+      { t: 'Сформировать (опубликовать)', k: 'publish', run: function(){ clickSel('button[formaction*="/publish"]'); } },
+      { t: 'Открыть PDF', k: 'pdf print', run: function(){ window.open('/pdf/' + UUID + '.pdf', '_blank'); } },
+      { t: 'Скопировать публичную ссылку', k: 'public link', run: function(){ clickSel('#ws-public'); } },
+      { t: 'Добавить строку товара', k: 'row add', run: function(){ esfAddRow(); } },
+      { t: 'Полный экран', k: 'fullscreen', run: function(){ clickSel('#ws-fs'); } },
+      { t: 'К списку документов', k: 'dashboard home', run: function(){ location.href = '/dashboard'; } },
+      { t: 'Создать новый ЭСФ', k: 'new create', run: function(){ location.href = '/esf/new'; } },
+      { t: 'Перейти: Поставщик', k: 'goto supplier', run: function(){ jumpSection('sec-supplier'); } },
+      { t: 'Перейти: Покупатель', k: 'goto buyer', run: function(){ jumpSection('sec-buyer'); } },
+      { t: 'Перейти: Товары', k: 'goto goods', run: function(){ jumpSection('sec-goods'); } },
+      { t: 'Перейти: Итоги', k: 'goto totals', run: function(){ jumpSection('sec-totals'); } }
+    ];
+    function jumpSection(id){ var el = document.getElementById(id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    function recentDocs(){ try { return JSON.parse(localStorage.getItem('esf_recent') || '[]'); } catch (_) { return []; } }
+    function pushRecent(){
+      try {
+        var list = recentDocs().filter(function(d){ return d.uuid !== UUID; });
+        var num = (form.querySelector('[name="esf_number"]') || {}).value || '';
+        var sup = (form.querySelector('[name="supplier_name"]') || {}).value || '';
+        list.unshift({ uuid: UUID, label: (num || 'без номера') + (sup ? ' · ' + sup : '') });
+        localStorage.setItem('esf_recent', JSON.stringify(list.slice(0, 8)));
+      } catch (_) {}
+    }
+    function renderPalette(q){
+      q = (q || '').toLowerCase().trim();
+      palItems = [];
+      COMMANDS.forEach(function(c){ if (!q || (c.t + ' ' + c.k).toLowerCase().indexOf(q) !== -1) palItems.push({ label: c.t, run: c.run, tag: 'Команда' }); });
+      recentDocs().forEach(function(d){ if (d.uuid !== UUID && (!q || d.label.toLowerCase().indexOf(q) !== -1)) palItems.push({ label: d.label, run: function(){ location.href = '/esf/' + d.uuid; }, tag: 'Документ' }); });
+      palActive = 0;
+      palList.innerHTML = palItems.length ? palItems.map(function(it, i){
+        return '<div class="cmdk-item' + (i === 0 ? ' active' : '') + '" data-i="' + i + '"><span>' + it.label + '</span><span class="cmdk-tag">' + it.tag + '</span></div>';
+      }).join('') : '<div class="cmdk-empty">Ничего не найдено</div>';
+    }
+    function openPalette(){ pushRecent(); pal.style.display = 'flex'; palInput.value = ''; renderPalette(''); palInput.focus(); }
+    function closePalette(){ pal.style.display = 'none'; }
+    function togglePalette(){ pal.style.display === 'flex' ? closePalette() : openPalette(); }
+    function runActive(){ var it = palItems[palActive]; if (it) { closePalette(); it.run(); } }
+    palInput.addEventListener('input', function(){ renderPalette(palInput.value); });
+    palInput.addEventListener('keydown', function(e){
+      if (e.key === 'ArrowDown') { palActive = Math.min(palActive + 1, palItems.length - 1); paint(); e.preventDefault(); }
+      else if (e.key === 'ArrowUp') { palActive = Math.max(palActive - 1, 0); paint(); e.preventDefault(); }
+      else if (e.key === 'Enter') { runActive(); e.preventDefault(); }
+      else if (e.key === 'Escape') { closePalette(); }
+    });
+    function paint(){ palList.querySelectorAll('.cmdk-item').forEach(function(el, i){ el.classList.toggle('active', i === palActive); }); }
+    palList.addEventListener('click', function(e){ var it = e.target.closest('.cmdk-item'); if (it) { palActive = parseInt(it.getAttribute('data-i'), 10); runActive(); } });
+    pal.addEventListener('click', function(e){ if (e.target === pal) closePalette(); });
+    pushRecent();
+
+    // ---------- AUTO-RECOVERY (restore unsaved draft after a crash) ---
+    var RKEY = 'esf_draft_' + UUID;
+    function pairs(){ var a = []; form.querySelectorAll('input[name],select[name],textarea[name]').forEach(function(el){ if (el.name !== 'csrf_token') a.push([el.name, el.value]); }); return a; }
+    function curState(){ return JSON.stringify(pairs()); }
+    var savedState = curState();
+    var rt = null;
+    form.addEventListener('input', function(){ clearTimeout(rt); rt = setTimeout(function(){ try { localStorage.setItem(RKEY, JSON.stringify({ t: new Date().toISOString(), s: pairs(), scroll: (document.getElementById('ws-canvas') || {}).scrollTop || 0 })); } catch (_) {} }, 800); });
+    form.addEventListener('submit', function(){ try { localStorage.removeItem(RKEY); } catch (_) {} });
+    (function checkRecovery(){
+      var raw; try { raw = localStorage.getItem(RKEY); } catch (_) { return; }
+      if (!raw) return;
+      var data; try { data = JSON.parse(raw); } catch (_) { localStorage.removeItem(RKEY); return; }
+      if (!data || JSON.stringify(data.s) === savedState) { localStorage.removeItem(RKEY); return; }
+      var bar = document.createElement('div'); bar.className = 'recover-bar';
+      bar.innerHTML = '<span>Найдены несохранённые изменения от ' + new Date(data.t).toLocaleString('ru-RU') + '.</span>' +
+        '<button type="button" class="ebtn save" id="rec-yes">Восстановить</button>' +
+        '<button type="button" class="ebtn" id="rec-no">Отклонить</button>';
+      var canvas = document.getElementById('ws-canvas');
+      if (canvas) canvas.insertBefore(bar, canvas.firstChild);
+      bar.querySelector('#rec-yes').addEventListener('click', function(){
+        // rebuild item rows to match the saved snapshot count, then apply values
+        var names = data.s.map(function(p){ return p[0]; });
+        var itemRows = names.filter(function(n){ return n === 'item_name'; }).length;
+        var have = tbody.querySelectorAll('tr.item').length;
+        while (have < itemRows) { esfAddRow(); have++; }
+        var idx = {};
+        data.s.forEach(function(p){
+          var name = p[0], val = p[1];
+          if (/^item_/.test(name)) { idx[name] = (idx[name] || 0); var els = form.querySelectorAll('[name="' + name + '"]'); if (els[idx[name]]) els[idx[name]].value = val; idx[name]++; }
+          else { var el = form.querySelector('[name="' + name + '"]'); if (el) el.value = val; }
+        });
+        renumber(); recalc(); dirty();
+        if (canvas && data.scroll) canvas.scrollTop = data.scroll;
+        bar.remove();
+      });
+      bar.querySelector('#rec-no').addEventListener('click', function(){ try { localStorage.removeItem(RKEY); } catch (_) {} bar.remove(); });
+    })();
+  })();
+
+  // ===================================================================
+  //  Module 34 — Smart Goods catalog: item autocomplete + recent panel
+  // ===================================================================
+  (function(){
+    var tbody = document.getElementById('esf-items');
+    if (!tbody) return;
+    var FILL = { code: 'item_tnved', unit: 'item_unit', price: 'item_price', vat_rate: 'item_vat_rate' };
+
+    var dd = document.createElement('div'); dd.className = 'cp-dropdown goods-dd'; document.body.appendChild(dd);
+    var items = [], active = -1, current = null, timer = null;
+    function hide(){ dd.style.display = 'none'; active = -1; items = []; current = null; }
+    function place(input){ var r = input.getBoundingClientRect(); dd.style.left = r.left + 'px'; dd.style.top = (r.bottom + 2) + 'px'; dd.style.minWidth = Math.max(r.width, 320) + 'px'; }
+    function fillRow(tr, g){
+      Object.keys(FILL).forEach(function(k){ var el = tr.querySelector('[name="' + FILL[k] + '"]'); if (el && g[k] != null && g[k] !== '') el.value = g[k]; });
+      var nm = tr.querySelector('[name="item_name"]'); if (nm) nm.value = g.name || '';
+      if (window.esfRecalc) window.esfRecalc();
+      if (window.esfDirty) window.esfDirty();
+    }
+    function render(){
+      if (!items.length){ dd.innerHTML = '<div class="cp-empty">Товар не найден — будет сохранён в каталог</div>'; return; }
+      dd.innerHTML = '';
+      items.forEach(function(g, i){
+        var row = document.createElement('div'); row.className = 'cp-item' + (i === active ? ' active' : '');
+        row.innerHTML = (g.is_favorite ? '★ ' : '') + '<span class="cp-name">' + (g.name || '') + '</span>' +
+          '<div class="cp-sub">' + [g.code, g.unit, (g.price ? g.price + ' сом' : '')].filter(Boolean).join(' · ') +
+          (g.use_count ? '  ·  использован ' + g.use_count + '×' : '') + '</div>';
+        row.addEventListener('mousedown', function(e){ e.preventDefault(); var tr = current.closest('tr.item'); if (tr) fillRow(tr, g); hide(); });
+        dd.appendChild(row);
+      });
+    }
+    function query(input){
+      var q = (input.value || '').trim();
+      if (q.length < 2){ hide(); return; }
+      fetch('/api/goods/search?q=' + encodeURIComponent(q), { headers: { 'X-Requested-With': 'fetch' } })
+        .then(function(r){ return r.ok ? r.json() : { results: [] }; })
+        .then(function(j){ items = (j && j.results) || []; active = -1; place(input); render(); dd.style.display = 'block'; })
+        .catch(hide);
+    }
+    document.addEventListener('input', function(e){
+      if (!e.target || e.target.name !== 'item_name') return;
+      current = e.target; clearTimeout(timer); timer = setTimeout(function(){ query(current); }, 300);
+    });
+    document.addEventListener('keydown', function(e){
+      if (dd.style.display !== 'block' || !current) return;
+      if (e.key === 'ArrowDown'){ active = Math.min(active + 1, items.length - 1); render(); e.preventDefault(); }
+      else if (e.key === 'ArrowUp'){ active = Math.max(active - 1, 0); render(); e.preventDefault(); }
+      else if (e.key === 'Enter'){ if (active >= 0 && items[active]){ var tr = current.closest('tr.item'); if (tr) fillRow(tr, items[active]); hide(); e.preventDefault(); } }
+      else if (e.key === 'Escape'){ hide(); }
+    });
+    document.addEventListener('click', function(e){ if (e.target !== current && !dd.contains(e.target)) hide(); });
+    window.addEventListener('scroll', function(){ if (current && dd.style.display === 'block') place(current); }, true);
+
+    // recent goods panel: click "+ В таблицу" to add a filled item row
+    var panel = document.getElementById('ws-goods');
+    if (panel){
+      fetch('/api/goods/recent', { headers: { 'X-Requested-With': 'fetch' } })
+        .then(function(r){ return r.ok ? r.json() : { results: [] }; })
+        .then(function(j){
+          var list = (j && j.results) || [];
+          if (!list.length){ panel.innerHTML = '<li class="ws-hint">Пока нет. Сохранённые товары появятся здесь.</li>'; return; }
+          panel.innerHTML = '';
+          list.forEach(function(g){
+            var li = document.createElement('li');
+            var nm = document.createElement('span'); nm.className = 'r-name'; nm.textContent = (g.is_favorite ? '★ ' : '') + (g.name || '');
+            var sub = document.createElement('span'); sub.className = 'r-inn'; sub.textContent = [g.code, g.unit, g.price].filter(Boolean).join(' · ');
+            var box = document.createElement('div'); box.className = 'r-fill';
+            var b = document.createElement('button'); b.type = 'button'; b.textContent = '+ В таблицу';
+            b.addEventListener('click', function(){ var tr = esfAddRow(); if (tr) fillRow(tr, g); });
+            box.appendChild(b);
+            li.appendChild(sub); li.appendChild(nm); li.appendChild(box);
+            panel.appendChild(li);
+          });
+        })
+        .catch(function(){ panel.innerHTML = '<li class="ws-hint">Не удалось загрузить.</li>'; });
+    }
+  })();
+
+  // ===================================================================
+  //  Module 36 — Form flow (Phase 4): Enter = next field, auto-focus.
+  //  Enter never accidentally submits; it advances like Tab and creates
+  //  the next item row when you reach the end. Ctrl/Cmd+Enter still
+  //  publishes; Ctrl/Cmd+S still saves (handled in Module 33).
+  // ===================================================================
+  (function(){
+    var form = document.getElementById('esfform');
+    var tbody = document.getElementById('esf-items');
+    if (!form) return;
+
+    function focusables(){
+      return Array.prototype.slice.call(form.querySelectorAll('input.cinp'))
+        .filter(function(el){ return !el.disabled && el.offsetParent !== null; });
+    }
+    form.addEventListener('keydown', function(e){
+      if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+      var t = e.target;
+      if (!t || t.tagName !== 'INPUT' || !t.classList.contains('cinp')) return;
+      // if a counterparty/goods dropdown is open, let it handle Enter (selection)
+      var dd = document.querySelector('.cp-dropdown'); if (dd && dd.style.display === 'block') return;
+      e.preventDefault();
+      var list = focusables(), i = list.indexOf(t);
+      if (i === -1) return;
+      // last cell of the last item row → create the next row (like Tab)
+      var row = t.closest('tr.item');
+      if (row && tbody) {
+        var rowInputs = row.querySelectorAll('input.cinp');
+        var rows = tbody.querySelectorAll('tr.item');
+        if (t === rowInputs[rowInputs.length - 1] && row === rows[rows.length - 1]) { esfAddRow(); return; }
+      }
+      var next = list[i + 1];
+      if (next) { next.focus(); if (next.select) try { next.select(); } catch (_) {} }
+    });
+
+    // auto-focus the first thing that needs attention (Phase 4)
+    (function autofocus(){
+      if (document.querySelector('.recover-bar')) return;        // recovery prompt takes priority
+      var target = form.querySelector('.cinp.req:placeholder-shown') || form.querySelector('.cinp');
+      if (target) { try { target.focus({ preventScroll: false }); } catch (_) { target.focus(); } }
+    })();
+  })();
+
+  // ===================================================================
+  //  Module 9 — Validation Center: make server errors clickable so they
+  //  jump to the offending field and highlight it (IDE-like).
+  // ===================================================================
+  (function(){
+    var form = document.getElementById('esfform');
+    if (!form) return;
+    var BY_CODE = {
+      '201': '[name="supplier_inn"]', '202': '[name="supplier_name"]', '205': '[name="supplier_address"]',
+      '206': '[name="supplier_tax_office_code"]', '207': '[name="supplier_bank"]', '208': '[name="supplier_account"]',
+      '301': '[name="buyer_inn"]', '302': '[name="buyer_name"]', '305': '[name="buyer_address"]',
+      '401': '[name="supply_date"]', '405': '[name="contract_number"]', '450': '[name="director_name"]'
+    };
+    function targetFor(text){
+      var m = text.match(/поле\s*(\d+)/i);
+      if (m && BY_CODE[m[1]]) return form.querySelector(BY_CODE[m[1]]);
+      if (/валют/i.test(text)) return form.querySelector('[name="currency_code"]');
+      if (/товар/i.test(text)) return form.querySelector('[name="item_name"]');
+      return null;
+    }
+    function flash(el){
+      el.classList.add('field-flash');
+      try { el.focus({ preventScroll: true }); } catch (_) {}
+      setTimeout(function(){ el.classList.remove('field-flash'); }, 900);
+    }
+    function wire(scope){
+      scope.querySelectorAll('li').forEach(function(li){
+        var el = targetFor(li.textContent || '');
+        if (!el) return;
+        li.classList.add('val-jump');
+        li.title = 'Перейти к полю';
+        li.addEventListener('click', function(){
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' }); flash(el);
+        });
+      });
+    }
+    document.querySelectorAll('.val-errors, #ws-valid-body').forEach(wire);
+  })();
+
+  // ===================================================================
+  //  Module 19 — Local AI assistant (no external calls): heuristic
+  //  pre-flight checks + warn-before-publish. Never edits data.
+  // ===================================================================
+  (function(){
+    var form = document.getElementById('esfform');
+    if (!form) return;
+    function val(name){ var e = form.querySelector('[name="' + name + '"]'); return e ? (e.value || '').trim() : ''; }
+    function numv(v){ v = parseFloat(String(v).replace(',', '.')); return isFinite(v) ? v : 0; }
+
+    function analyze(){
+      var out = [];
+      var sInn = val('supplier_inn'), bInn = val('buyer_inn');
+      if (sInn && bInn && sInn === bInn) out.push({ lvl: 'warn', msg: 'Поставщик и покупатель имеют одинаковый ИНН.' });
+      [['supplier_inn', 'поставщика'], ['buyer_inn', 'покупателя']].forEach(function(p){
+        var v = val(p[0]); if (v && v.length !== 14) out.push({ lvl: 'warn', msg: 'ИНН ' + p[1] + ' содержит ' + v.length + ' цифр (ожидается 14).' });
+      });
+      var cc = val('currency_code');
+      if (cc && cc !== '417' && !val('currency_rate')) out.push({ lvl: 'warn', msg: 'Указан код валюты ' + cc + ', но не указан курс.' });
+      // line items
+      var rows = form.querySelectorAll('#esf-items tr.item'), seen = {};
+      rows.forEach(function(tr, i){
+        function f(n){ var e = tr.querySelector('[name="' + n + '"]'); return e ? (e.value || '').trim() : ''; }
+        var name = f('item_name'); if (!name) return;
+        var price = numv(f('item_price')), qty = numv(f('item_qty'));
+        if (price <= 0) out.push({ lvl: 'warn', msg: 'Строка ' + (i + 1) + ' «' + name + '»: цена ≤ 0.' });
+        if (qty <= 0) out.push({ lvl: 'warn', msg: 'Строка ' + (i + 1) + ' «' + name + '»: количество ≤ 0.' });
+        if (numv(f('item_vat_rate')) > 0 && numv(f('item_vat_amount')) === 0)
+          out.push({ lvl: 'info', msg: 'Строка ' + (i + 1) + ': ставка НДС > 0, но сумма НДС = 0.' });
+        var key = (name + '|' + price + '|' + qty).toLowerCase();
+        if (seen[key]) out.push({ lvl: 'info', msg: 'Строки ' + seen[key] + ' и ' + (i + 1) + ' выглядят как дубликаты.' });
+        else seen[key] = (i + 1);
+      });
+      return out;
+    }
+
+    function render(list){
+      var body = document.getElementById('ai-body'); if (!body) return;
+      if (!list.length) { body.className = 'ai-body v-ok'; body.textContent = '✓ Замечаний не найдено.'; return; }
+      body.className = 'ai-body';
+      body.innerHTML = '<ul class="ai-list">' + list.map(function(it){
+        return '<li class="ai-' + it.lvl + '">' + (it.lvl === 'warn' ? '⚠ ' : 'ℹ ') + it.msg + '</li>';
+      }).join('') + '</ul>';
+    }
+    var btn = document.getElementById('ai-check');
+    if (btn) btn.addEventListener('click', function(){ render(analyze()); });
+
+    // warn before publish if heuristics find anything
+    var pub = form.querySelector('button[formaction*="/publish"]');
+    if (pub) pub.addEventListener('click', function(e){
+      var list = analyze().filter(function(x){ return x.lvl === 'warn'; });
+      if (list.length) {
+        render(analyze());
+        if (!window.confirm('Помощник нашёл предупреждений: ' + list.length + '. Опубликовать всё равно?')) {
+          e.preventDefault(); e.stopPropagation();
+        }
+      }
+    });
+  })();
+
+  // ===================================================================
+  //  v5.0 Module 6 — Excel-grade goods grid: arrow navigation, multi-cell
+  //  selection, copy (Ctrl/Cmd+C), paste ranges from Excel (Ctrl/Cmd+V),
+  //  fill-down (Ctrl/Cmd+D), Excel-style Enter. Pure client-side: it only
+  //  fills the SAME inputs the form already submits, so backend validation,
+  //  publication and snapshots are untouched.
+  // ===================================================================
+  (function(){
+    var tbody = document.getElementById('esf-items');
+    if (!tbody) return;
+    // editable columns, left→right (computed amount/total cells are skipped)
+    var COLS = ['item_tnved', 'item_name', 'item_unit', 'item_price', 'item_qty',
+                'item_vat_rate', 'item_vat_amount', 'item_nsp', 'item_customs'];
+    var sel = { ar: 0, ac: 0, fr: 0, fc: 0 };
+    var prog = false;   // guard against focusin clobbering during programmatic focus
+
+    function rows(){ return Array.prototype.slice.call(tbody.querySelectorAll('tr.item')); }
+    function cellAt(r, c){ var rw = rows()[r]; return rw ? rw.querySelector('[name="' + COLS[c] + '"]') : null; }
+    function isGridInput(el){ return el && el.classList && el.classList.contains('cinp') &&
+      el.closest('#esf-items') && COLS.indexOf(el.getAttribute('name')) >= 0; }
+    function posOf(el){ var r = rows().indexOf(el.closest('tr.item')); var c = COLS.indexOf(el.getAttribute('name')); return (r < 0 || c < 0) ? null : { r: r, c: c }; }
+    function rect(){ return { r0: Math.min(sel.ar, sel.fr), r1: Math.max(sel.ar, sel.fr),
+                              c0: Math.min(sel.ac, sel.fc), c1: Math.max(sel.ac, sel.fc) }; }
+    function clamp(v, lo, hi){ return Math.max(lo, Math.min(v, hi)); }
+
+    function renderSel(){
+      tbody.querySelectorAll('.cinp.cell-sel').forEach(function(el){ el.classList.remove('cell-sel'); });
+      if (sel.ar === sel.fr && sel.ac === sel.fc) return;     // single cell: no block highlight
+      var R = rect();
+      for (var r = R.r0; r <= R.r1; r++) for (var c = R.c0; c <= R.c1; c++) {
+        var el = cellAt(r, c); if (el) el.classList.add('cell-sel');
+      }
+    }
+    function focusCell(r, c, extend){
+      var el = cellAt(r, c); if (!el) return;
+      prog = true; el.focus(); try { el.select(); } catch (_) {} prog = false;
+      sel.fr = r; sel.fc = c; if (!extend) { sel.ar = r; sel.ac = c; }
+      renderSel();
+    }
+    function move(dr, dc, extend){ focusCell(clamp(sel.fr + dr, 0, rows().length - 1), clamp(sel.fc + dc, 0, COLS.length - 1), extend); }
+    function afterEdit(){ if (window.esfRenumber) window.esfRenumber(); if (window.esfRecalc) window.esfRecalc(); if (window.esfDirty) window.esfDirty(); }
+    function atStart(i){ return i.selectionStart === 0 && i.selectionEnd === 0; }
+    function atEnd(i){ var n = (i.value || '').length; return i.selectionStart === n && i.selectionEnd === n; }
+    function ddOpen(){ return Array.prototype.some.call(document.querySelectorAll('.cp-dropdown'), function(d){ return d.style.display === 'block'; }); }
+
+    // track the active cell when the user clicks / tabs into one
+    tbody.addEventListener('focusin', function(e){ if (prog || !isGridInput(e.target)) return; var p = posOf(e.target); if (p) { sel = { ar: p.r, ac: p.c, fr: p.r, fc: p.c }; renderSel(); } });
+
+    function copySel(){
+      var R = rect(), lines = [];
+      for (var r = R.r0; r <= R.r1; r++) { var cells = [];
+        for (var c = R.c0; c <= R.c1; c++) { var el = cellAt(r, c); cells.push(el ? el.value : ''); }
+        lines.push(cells.join('\t')); }
+      var tsv = lines.join('\n');
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(tsv).catch(function(){});
+    }
+    function fillDown(){
+      var R = rect();
+      if (R.r0 === R.r1) {                       // single row → copy from the row above
+        if (R.r0 === 0) return;
+        for (var c = R.c0; c <= R.c1; c++) { var s = cellAt(R.r0 - 1, c), d = cellAt(R.r0, c); if (s && d) d.value = s.value; }
+      } else {                                   // multi-row → copy top row down
+        for (var c2 = R.c0; c2 <= R.c1; c2++) { var top = cellAt(R.r0, c2); if (!top) continue;
+          for (var r = R.r0 + 1; r <= R.r1; r++) { var dd = cellAt(r, c2); if (dd) dd.value = top.value; } }
+      }
+      afterEdit();
+    }
+
+    tbody.addEventListener('keydown', function(e){
+      if (!isGridInput(e.target)) return;
+      var mod = e.ctrlKey || e.metaKey;
+      if (mod && (e.key === 'c' || e.key === 'C' || e.key === 'с' || e.key === 'С')) { copySel(); e.preventDefault(); return; }
+      if (mod && (e.key === 'd' || e.key === 'D' || e.key === 'в' || e.key === 'В')) { fillDown(); e.preventDefault(); return; }
+      if (mod) return;                            // paste handled by 'paste'; leave other combos
+      if (ddOpen()) return;                       // autocomplete owns arrows/enter while open
+      var k = e.key;
+      if (k === 'ArrowDown') { move(1, 0, e.shiftKey); e.preventDefault(); e.stopPropagation(); }
+      else if (k === 'ArrowUp') { move(-1, 0, e.shiftKey); e.preventDefault(); e.stopPropagation(); }
+      else if (k === 'ArrowRight') { if (e.shiftKey) { move(0, 1, true); e.preventDefault(); e.stopPropagation(); }
+        else if (atEnd(e.target)) { move(0, 1, false); e.preventDefault(); e.stopPropagation(); } }
+      else if (k === 'ArrowLeft') { if (e.shiftKey) { move(0, -1, true); e.preventDefault(); e.stopPropagation(); }
+        else if (atStart(e.target)) { move(0, -1, false); e.preventDefault(); e.stopPropagation(); } }
+      else if (k === 'Enter') {
+        e.preventDefault(); e.stopPropagation();  // Excel-style: move within the column
+        var p = posOf(e.target);
+        if (e.shiftKey) { move(-1, 0, false); }
+        else if (p.r >= rows().length - 1) { if (typeof esfAddRow === 'function') esfAddRow(); focusCell(rows().length - 1, p.c, false); }
+        else { move(1, 0, false); }
+      }
+    });
+
+    // paste a range copied from Excel (TSV) starting at the active cell
+    tbody.addEventListener('paste', function(e){
+      if (!isGridInput(e.target)) return;
+      var txt = (e.clipboardData || window.clipboardData).getData('text');
+      if (!txt || (txt.indexOf('\t') === -1 && txt.indexOf('\n') === -1)) return;   // single value → normal paste
+      e.preventDefault();
+      var matrix = txt.replace(/\r/g, '').split('\n');
+      if (matrix.length && matrix[matrix.length - 1] === '') matrix.pop();            // drop trailing newline
+      matrix = matrix.map(function(l){ return l.split('\t'); });
+      var p = posOf(e.target); if (!p) return;
+      for (var i = 0; i < matrix.length; i++) {
+        var r = p.r + i;
+        while (rows().length <= r && typeof esfAddRow === 'function') esfAddRow();
+        for (var j = 0; j < matrix[i].length; j++) {
+          var c = p.c + j; if (c >= COLS.length) break;
+          var el = cellAt(r, c); if (el) el.value = matrix[i][j].trim();
+        }
+      }
+      afterEdit();
+      var lastRow = p.r + matrix.length - 1, lastCol = Math.min(p.c + matrix[matrix.length - 1].length - 1, COLS.length - 1);
+      sel = { ar: p.r, ac: p.c, fr: lastRow, fc: lastCol };
+      focusCell(lastRow, lastCol, true);
+    });
+  })();
+
+  // ===================================================================
+  //  Final editor redesign — More(⋯) menu, Print, right-panel tabs,
+  //  wizard step states, F11 focus mode. Workspace chrome only.
+  // ===================================================================
+  (function(){
+    var ws = document.getElementById('ws'), form = document.getElementById('esfform');
+    if (!ws || !form) return;
+
+    // (nit) show Ctrl instead of ⌘ on non-Mac in the More menu shortcut hints
+    if (!/Mac|iPhone|iPad/.test(navigator.platform || '')) {
+      document.querySelectorAll('.wm-key').forEach(function(k){ k.textContent = k.textContent.replace('⌘', 'Ctrl+'); });
+    }
+
+    // -- More (⋯) overflow menu --
+    var moreBtn = document.getElementById('ws-more-btn'), moreMenu = document.getElementById('ws-more-menu');
+    function closeMore(){ if (moreMenu) { moreMenu.hidden = true; if (moreBtn) moreBtn.setAttribute('aria-expanded', 'false'); } }
+    if (moreBtn && moreMenu) {
+      moreBtn.addEventListener('click', function(e){ e.stopPropagation(); var open = moreMenu.hidden; moreMenu.hidden = !open; moreBtn.setAttribute('aria-expanded', String(open)); });
+      moreMenu.addEventListener('click', function(){ setTimeout(closeMore, 0); });
+      document.addEventListener('click', function(e){ if (!e.target.closest('#ws-more')) closeMore(); });
+    }
+
+    // -- Print (hides chrome via @media print) --
+    var bPrint = document.getElementById('ws-print');
+    if (bPrint) bPrint.addEventListener('click', function(){ window.print(); });
+
+    // -- Save (background, no reload) --
+    var bSave = document.getElementById('ws-save');
+    if (bSave) bSave.addEventListener('click', function(){ if (window.esfSaveNow) window.esfSaveNow(); });
+
+    // -- right-panel tabs: only the active context is shown --
+    var tabs = document.getElementById('ws-tabs');
+    if (tabs) {
+      var tabBtns = tabs.querySelectorAll('.wt-tab'), panels = tabs.querySelectorAll('.wt-panel');
+      tabs.querySelector('.ws-tabbar').addEventListener('click', function(e){
+        var b = e.target.closest('.wt-tab'); if (!b) return;
+        var name = b.getAttribute('data-tab');
+        tabBtns.forEach(function(x){ x.classList.toggle('active', x === b); });
+        panels.forEach(function(p){ p.hidden = (p.getAttribute('data-tab') !== name); });
+      });
+    }
+
+    // -- wizard step states: completed / incomplete / warning --
+    function v(name){ var e = form.querySelector('[name="' + name + '"]'); return e ? (e.value || '').trim() : ''; }
+    function innBad(name){ var x = v(name); return x && x.length !== 14; }
+    function stepState(step){
+      switch (step) {
+        case 'doc':      return v('issue_date') ? 'done' : 'todo';
+        case 'supplier': return (!v('supplier_inn') || !v('supplier_name')) ? 'todo' : (innBad('supplier_inn') ? 'warn' : 'done');
+        case 'buyer':    return (!v('buyer_inn') || !v('buyer_name')) ? 'todo' : (innBad('buyer_inn') ? 'warn' : 'done');
+        case 'supply':   return (v('supply_date') || v('supply_type') || v('payment_type')) ? 'done' : 'todo';
+        case 'goods': {
+          var rows = form.querySelectorAll('#esf-items tr.item'), any = false, bad = false;
+          rows.forEach(function(tr){
+            function f(n){ var e = tr.querySelector('[name="' + n + '"]'); return e ? (e.value || '').trim() : ''; }
+            if (f('item_name')) { any = true;
+              if (!f('item_unit') || !(parseFloat(f('item_price')) > 0) || !(parseFloat(f('item_qty')) > 0)) bad = true; }
+          });
+          return !any ? 'todo' : (bad ? 'warn' : 'done');
+        }
+        case 'totals': { var t = form.querySelector('.calc-inv-total'); var n = t ? parseFloat((t.textContent || '0').replace(',', '.')) : 0; return n > 0 ? 'done' : 'todo'; }
+        case 'sign':     return v('director_name') ? 'done' : 'todo';
+        case 'valid':    return {{ 'true' if errors else 'false' }} ? 'warn' : ({{ 'true' if ok_msg else 'false' }} ? 'done' : 'todo');
+      }
+      return 'todo';
+    }
+    var GLYPH = { done: '✓', warn: '!', todo: '○' };   /* (nit) incomplete steps need a visible marker, not just colour */
+    function refreshWizard(){
+      document.querySelectorAll('#ws-nav a[data-step]').forEach(function(a){
+        var s = stepState(a.getAttribute('data-step'));
+        a.classList.remove('st-done', 'st-warn', 'st-todo');
+        a.classList.add('st-' + s);
+        var dot = a.querySelector('.wz-state'); if (dot) dot.textContent = GLYPH[s] || '';
+      });
+    }
+    refreshWizard();
+    form.addEventListener('input', function(){ clearTimeout(refreshWizard._t); refreshWizard._t = setTimeout(refreshWizard, 250); });
+    // (nit) on load the first step should read as current, not whatever the
+    // scroll observer happens to catch first
+    if (!document.querySelector('#ws-nav a.active')) { var f = document.querySelector('#ws-nav a'); if (f) f.classList.add('active'); }
+
+    // -- F11 focus mode (hide both panels; Esc exits) --
+    document.addEventListener('keydown', function(e){
+      if (e.key === 'F11') { e.preventDefault(); ws.classList.toggle('focus-mode'); setTimeout(function(){ if (window.esfFitEdit) window.esfFitEdit(); }, 60); }
+      else if (e.key === 'Escape' && ws.classList.contains('focus-mode')) { ws.classList.remove('focus-mode'); setTimeout(function(){ if (window.esfFitEdit) window.esfFitEdit(); }, 60); }
+    });
+  })();
+
+  // ===================================================================
+  //  Edit = ONE PAGE, NO SCROLL. Scale the whole STI-007 to fit inside the
+  //  canvas (width AND height) and centre it, so the editing page never
+  //  scrolls. Uniform scale → real layout, no overlapping fields.
+  // ===================================================================
+  (function(){
+    var canvas = document.getElementById('ws-canvas');
+    var fit = document.getElementById('edit-fit');
+    var page = document.getElementById('edit-page');
+    var doc = page && page.querySelector('.esf-doc');
+    if (!canvas || !fit || !page || !doc) return;
+    var DOC_W = 1056, PAD = 20;
+    function fitEdit(){
+      page.style.transform = 'none'; fit.style.width = ''; fit.style.height = '';
+      var natH = doc.offsetHeight || 1;
+      var banner = canvas.querySelector('.val-errors, .val-ok');
+      var bh = banner ? banner.offsetHeight + 10 : 0;
+      var availW = canvas.clientWidth - PAD;
+      var availH = canvas.clientHeight - PAD - bh;
+      var scale = Math.min(availW / DOC_W, availH / natH);   // fit BOTH dimensions
+      scale = Math.max(0.3, Math.min(scale, 1.8));
+      page.style.transform = 'scale(' + scale + ')';
+      fit.style.width = (DOC_W * scale) + 'px';
+      fit.style.height = (natH * scale) + 'px';
+    }
+    window.esfFitEdit = fitEdit;
+    fitEdit();
+    window.addEventListener('resize', fitEdit);
+    window.addEventListener('load', fitEdit);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitEdit);
+    // rows added/removed change the document height → refit so it still fits
+    var tb = document.getElementById('esf-items');
+    if (tb && 'MutationObserver' in window) {
+      new MutationObserver(function(){ clearTimeout(fitEdit._t); fitEdit._t = setTimeout(fitEdit, 60); }).observe(tb, { childList: true });
+    }
+    ['ws-toggle-left', 'ws-toggle-right'].forEach(function(id){
+      var b = document.getElementById(id); if (b) b.addEventListener('click', function(){ setTimeout(fitEdit, 60); });
+    });
+  })();
+</script>
+{%- endif %}
+</body>
+</html>
