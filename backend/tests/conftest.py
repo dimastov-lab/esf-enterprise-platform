@@ -3,9 +3,16 @@
 Each test runs inside a SAVEPOINT-wrapped transaction that is rolled back at the
 end, so the regression suite leaves the dev database unchanged and is repeatable.
 """
-import re
+# ENVIRONMENT now defaults to "production" (safe-by-default); the test app needs
+# the development profile (dev-admin seed, non-secure cookies). Set it BEFORE any
+# app import so app.core.config picks it up.
+import os
 
-import pytest
+os.environ.setdefault("ENVIRONMENT", "development")
+
+import re  # noqa: E402
+
+import pytest  # noqa: E402
 from fastapi.testclient import TestClient
 from sqlalchemy import event
 from sqlalchemy.orm import sessionmaker

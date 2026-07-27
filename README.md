@@ -50,8 +50,8 @@ pip install -r requirements.txt            # add -r requirements-dev.txt for tes
 export DATABASE_URL=postgresql+psycopg2://esf:esf@localhost:5432/esf
 alembic upgrade head
 
-# 4) Run
-uvicorn app.main:app --port 8011
+# 4) Run  (ENVIRONMENT defaults to production; set development for local dev)
+ENVIRONMENT=development uvicorn app.main:app --port 8011
 # open http://127.0.0.1:8011/login
 ```
 

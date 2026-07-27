@@ -21,7 +21,7 @@ STATIC_DIR = BASE_DIR / "static"
 
 # Interactive API docs are useful in dev but are attack surface / info disclosure
 # in production — disable them there.
-_prod = settings.ENVIRONMENT == "production"
+_prod = settings.is_production
 app = FastAPI(
     title=settings.PROJECT_NAME, version=settings.VERSION,
     docs_url=None if _prod else "/docs",
@@ -32,12 +32,43 @@ app = FastAPI(
 # structured logging + request id + clean 500 handler
 observability.install(app)
 
+# Content-Security-Policy + hardening headers on every response (defence-in-depth
+# for XSS/clickjacking). 'unsafe-inline' is required because the templates use
+# inline <script>/style; the value still blocks external script/object sources,
+# framing, and base-uri hijacking. Served in all environments; HSTS only in prod.
+_CSP = (
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline'; "
+    "style-src 'self' 'unsafe-inline'; "
+    "img-src 'self' data:; "
+    "font-src 'self'; "
+    "object-src 'none'; "
+    "base-uri 'self'; "
+    "frame-ancestors 'none'; "
+    "form-action 'self'"
+)
+
+
+@app.middleware("http")
+async def _security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers.setdefault("Content-Security-Policy", _CSP)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    if _prod:
+        response.headers.setdefault(
+            "Strict-Transport-Security", "max-age=31536000; includeSubDomains"
+        )
+    return response
+
+
 # Signed session cookie (login state). Secret comes from config/env.
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.SECRET_KEY,
     same_site="lax",
-    https_only=(settings.ENVIRONMENT == "production"),
+    https_only=_prod,
 )
 
 # CWD-safe absolute path (avoids the relative-mount bug from the legacy code).
@@ -70,7 +101,7 @@ app.include_router(api_router)
 app.include_router(esf_router)
 
 # Development-only preview. Never mounted in production.
-if settings.ENVIRONMENT != "production":
+if not settings.is_production:
     from app.routers.dev_preview import router as dev_preview_router
 
     app.include_router(dev_preview_router)
@@ -79,7 +110,7 @@ if settings.ENVIRONMENT != "production":
 @app.on_event("startup")
 def _dev_seed_admin():
     """Dev only: ensure roles + an initial admin (admin/admin123) so login works."""
-    if settings.ENVIRONMENT == "production":
+    if settings.is_production:
         return
     from app.db.session import SessionLocal
     from app.services.auth_service import AuthService

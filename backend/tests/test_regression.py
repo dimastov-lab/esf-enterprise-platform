@@ -6,6 +6,7 @@ All tests run inside a rolled-back transaction (see conftest.py).
 """
 from urllib.parse import urlencode
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -826,3 +827,79 @@ def test_directory_dropdowns_use_textcontent(admin):
     html = admin.get(f"/esf/{uuid}").text
     assert "cpName.textContent" in html and "gName.textContent" in html
     assert '<span class="cp-inn">\' + (cp.inn' not in html
+
+
+# ---- H4/M: infrastructure & config hardening -------------------------
+def test_security_headers_present(admin):
+    """Every response carries CSP + anti-clickjacking / MIME-sniffing headers."""
+    r = admin.get("/dashboard")
+    csp = r.headers.get("Content-Security-Policy", "")
+    assert "default-src 'self'" in csp and "frame-ancestors 'none'" in csp
+    assert "object-src 'none'" in csp
+    assert r.headers.get("X-Content-Type-Options") == "nosniff"
+    assert r.headers.get("X-Frame-Options") == "DENY"
+    assert r.headers.get("Referrer-Policy") == "strict-origin-when-cross-origin"
+
+
+def test_environment_is_production_by_default():
+    """Safe-by-default: only the explicit 'development' disables prod hardening."""
+    from app.core.config import Settings
+    s = Settings()
+    for prod in ("production", "prod", "", "staging", "Production"):
+        s.ENVIRONMENT = prod
+        assert s.is_production, prod
+    for dev in ("development", "Development", " development "):
+        s.ENVIRONMENT = dev
+        assert not s.is_production, dev
+
+
+def test_secret_key_fail_closed_in_production():
+    """Placeholder / empty / short secrets are rejected when ENVIRONMENT=production."""
+    from app.core.config import DEFAULT_SECRET, Settings
+    s = Settings()
+    s.ENVIRONMENT = "production"
+    for bad in ("", DEFAULT_SECRET, "CHANGE_ME_64_hex_chars",
+                "change-me-to-a-long-random-string", "tooshort"):
+        s.SECRET_KEY = bad
+        with pytest.raises(RuntimeError):
+            s.validate_for_runtime()
+    s.SECRET_KEY = "a" * 40                 # long, non-placeholder
+    s.validate_for_runtime()                # must not raise
+    s.ENVIRONMENT = "development"           # dev never validates the secret
+    s.SECRET_KEY = ""
+    s.validate_for_runtime()
+
+
+def test_client_ip_trusts_x_real_ip_only_behind_proxy(monkeypatch):
+    """X-Real-IP is honoured only when TRUST_PROXY is set; otherwise the socket peer."""
+    from app.core import observability
+    from app.core.config import settings
+
+    def req(xri, peer):
+        return type("R", (), {
+            "headers": {"x-real-ip": xri} if xri else {},
+            "client": type("C", (), {"host": peer})(),
+        })()
+
+    monkeypatch.setattr(settings, "TRUST_PROXY", False)
+    assert observability.client_ip(req("1.2.3.4", "10.0.0.1")) == "10.0.0.1"
+    monkeypatch.setattr(settings, "TRUST_PROXY", True)
+    assert observability.client_ip(req("1.2.3.4", "10.0.0.1")) == "1.2.3.4"
+    assert observability.client_ip(req(None, "10.0.0.1")) == "10.0.0.1"
+
+
+def test_delete_draft_persists_and_cancelled_blocked(admin):
+    """Deleting an editable draft persists (single-delete now commits); a CANCELLED
+    document (with its immutable snapshot) is rejected with 409, not a 500."""
+    uuid = new_draft(admin)
+    r = admin.post(f"/esf/{uuid}/delete")
+    assert r.status_code in (200, 303)
+    assert admin.get(f"/esf/{uuid}").status_code == 404          # actually gone
+    # publish -> cancel -> a CANCELLED doc keeps its snapshot and cannot be deleted
+    uuid2 = new_draft(admin)
+    save(admin, uuid2, valid_pairs())
+    admin.post(f"/esf/{uuid2}/publish", content=urlencode(valid_pairs()), headers=FORM)
+    admin.post(f"/esf/{uuid2}/cancel")
+    resp = admin.post(f"/esf/{uuid2}/delete")
+    assert resp.status_code == 409
+    assert admin.get(f"/esf/{uuid2}").status_code == 200         # still present

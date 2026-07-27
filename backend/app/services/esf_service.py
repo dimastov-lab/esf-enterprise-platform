@@ -350,10 +350,14 @@ class ESFService:
     # ---- delete --------------------------------------------------------
     def delete(self, doc: ESFDocument, user: User) -> None:
         require_owner_or_admin(doc, user)
-        if doc.status == DocumentStatus.PUBLISHED:
+        # Only editable drafts can be deleted. A PUBLISHED or CANCELLED document
+        # has an immutable snapshot (FK RESTRICT); deleting it previously raised
+        # an unhandled 500 — reject it cleanly with a 409 instead.
+        if not self.is_editable(doc):
             raise HTTPException(
                 status_code=409,
-                detail="Опубликованный документ нельзя удалить.",
+                detail="Документ с этим статусом нельзя удалить: "
+                       "у опубликованного/аннулированного есть неизменяемый снапшот.",
             )
         self.repo.delete(doc)
 

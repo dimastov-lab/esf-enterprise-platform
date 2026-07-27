@@ -7,6 +7,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.core import ratelimit
+from app.core.observability import client_ip
 from app.core.security import get_optional_user
 from app.db.session import get_db
 from app.services import audit_service
@@ -28,7 +29,7 @@ def login_page(request: Request, db: Session = Depends(get_db)):
 @router.post("/login", response_class=HTMLResponse)
 def login(request: Request, username: str = Form(...), password: str = Form(...),
           db: Session = Depends(get_db)):
-    ip = request.client.host if request.client else "unknown"
+    ip = client_ip(request)
     if ratelimit.is_locked(ip):
         return templates.TemplateResponse(
             request,
