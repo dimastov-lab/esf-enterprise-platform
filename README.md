@@ -46,8 +46,9 @@ cd backend
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt            # add -r requirements-dev.txt for tests
 
-# 3) Schema
+# 3) Schema  (ENVIRONMENT defaults to production; dev tooling must opt into dev)
 export DATABASE_URL=postgresql+psycopg2://esf:esf@localhost:5432/esf
+export ENVIRONMENT=development
 alembic upgrade head
 
 # 4) Run  (ENVIRONMENT defaults to production; set development for local dev)

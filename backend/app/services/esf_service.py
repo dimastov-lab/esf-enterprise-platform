@@ -270,6 +270,7 @@ class ESFService:
         """Annul a PUBLISHED ESF. The immutable snapshot is preserved (history);
         only the document's lifecycle status changes to CANCELLED."""
         require_owner_or_admin(doc, user)
+        self.repo.lock(doc)              # serialize + re-read status under a row lock
         if doc.status != DocumentStatus.PUBLISHED:
             raise HTTPException(status_code=409,
                                 detail="Аннулировать можно только опубликованный документ.")
@@ -350,6 +351,7 @@ class ESFService:
     # ---- delete --------------------------------------------------------
     def delete(self, doc: ESFDocument, user: User) -> None:
         require_owner_or_admin(doc, user)
+        self.repo.lock(doc)              # serialize + re-read status under a row lock
         # Only editable drafts can be deleted. A PUBLISHED or CANCELLED document
         # has an immutable snapshot (FK RESTRICT); deleting it previously raised
         # an unhandled 500 — reject it cleanly with a 409 instead.
@@ -364,6 +366,7 @@ class ESFService:
     # ---- save ----------------------------------------------------------
     def save(self, doc: ESFDocument, user: User, form) -> ESFDocument:
         require_owner_or_admin(doc, user)
+        self.repo.lock(doc)              # serialize + re-read status under a row lock
         self._require_editable(doc)
 
         def g(key):
@@ -457,6 +460,7 @@ class ESFService:
     def validate(self, doc: ESFDocument, user: User) -> List[str]:
         """Run the Validation Engine. On success: status DRAFT -> VALIDATED."""
         require_owner_or_admin(doc, user)
+        self.repo.lock(doc)              # serialize + re-read status under a row lock
         self._require_editable(doc)
         errors = validate_document(doc)
         doc.status = DocumentStatus.DRAFT if errors else DocumentStatus.VALIDATED
@@ -465,14 +469,17 @@ class ESFService:
         return errors
 
     def next_esf_number(self) -> str:
-        # Official salyk.kg format: 000{YYYY}-004-{8 digits}, e.g. 0002026-004-00000010
+        # Official salyk.kg format: 000{YYYY}-004-{8 digits}, e.g. 0002026-004-00000010.
+        # The counter is allocated from a DB sequence (atomic + collision-free under
+        # concurrency, unlike the old count()+1). The number_exists guard only covers
+        # the rare case of a hand-entered number a later sequence value could reach.
         year = datetime.now(timezone.utc).year
-        n = self.repo.count_numbered() + 1
-        candidate = f"000{year}-004-{n:08d}"
-        while self.repo.number_exists(candidate):
-            n += 1
+        for _ in range(1000):
+            n = self.repo.next_number_seq()
             candidate = f"000{year}-004-{n:08d}"
-        return candidate
+            if not self.repo.number_exists(candidate):
+                return candidate
+        raise HTTPException(status_code=500, detail="Не удалось выделить номер ЭСФ.")
 
     def publish(self, doc: ESFDocument, user: User) -> List[str]:
         """DRAFT/VALIDATED -> PUBLISHED via validate -> snapshot.
@@ -480,6 +487,7 @@ class ESFService:
         Returns validation errors (non-empty = not published).
         """
         require_owner_or_admin(doc, user)
+        self.repo.lock(doc)              # serialize: re-check status under a row lock
         self._require_editable(doc)
         errors = validate_document(doc)
         if errors:
@@ -506,6 +514,14 @@ class ESFService:
             payload = self.serialize(doc)                   # 4. immutable snapshot...
             self.db.add(snapshot_service.make_snapshot(doc, payload))
             self.repo.commit()                              # 7. commit once
+        except IntegrityError:
+            # e.g. an esf_number collision that slipped past the guard — surface a
+            # clean 409 (retryable) instead of an opaque 500.
+            self.db.rollback()
+            raise HTTPException(
+                status_code=409,
+                detail="Публикация не удалась из-за конфликта номера ЭСФ. Повторите попытку.",
+            )
         except Exception:
             self.db.rollback()                              # no partial publication
             raise

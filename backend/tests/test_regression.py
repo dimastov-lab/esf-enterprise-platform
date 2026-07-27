@@ -903,3 +903,41 @@ def test_delete_draft_persists_and_cancelled_blocked(admin):
     resp = admin.post(f"/esf/{uuid2}/delete")
     assert resp.status_code == 409
     assert admin.get(f"/esf/{uuid2}").status_code == 200         # still present
+
+
+# ---- H2: concurrency-safe publish + atomic ESF-number allocation -----
+def test_esf_number_allocation_is_unique_and_monotonic(admin, db_session):
+    """Numbers come from a DB sequence: each call is unique and increasing (no
+    count()+1 TOCTOU that could hand two publishes the same number)."""
+    import re as _re
+
+    from app.services.esf_service import ESFService
+    svc = ESFService(db_session)
+    nums = [svc.next_esf_number() for _ in range(5)]
+    assert len(set(nums)) == 5
+    for n in nums:
+        assert _re.match(r"^000\d{4}-004-\d{8}$", n), n
+    suffixes = [int(n.split("-")[2]) for n in nums]
+    assert suffixes == sorted(suffixes) and len(set(suffixes)) == 5
+
+
+def test_second_publish_creates_no_second_snapshot(admin, db_session):
+    """Re-publishing an already-PUBLISHED doc is rejected under the row lock and
+    never adds a duplicate snapshot (the double-publish race invariant)."""
+    import uuid as U
+
+    from app.models import ESFDocument
+    uuid = new_draft(admin)
+    save(admin, uuid, valid_pairs())
+    r1 = admin.post(f"/esf/{uuid}/publish", content=urlencode(valid_pairs()), headers=FORM)
+    assert r1.status_code in (200, 303)
+    doc = db_session.query(ESFDocument).filter(ESFDocument.uuid == U.UUID(uuid)).one()
+    assert len(doc.snapshots) == 1
+    number_after_first = doc.esf_number
+    # second publish: save() re-checks status under the lock -> 409, no mutation
+    r2 = admin.post(f"/esf/{uuid}/publish", content=urlencode(valid_pairs()), headers=FORM)
+    assert r2.status_code == 409
+    db_session.expire_all()
+    doc2 = db_session.query(ESFDocument).filter(ESFDocument.uuid == U.UUID(uuid)).one()
+    assert len(doc2.snapshots) == 1               # still exactly one
+    assert doc2.esf_number == number_after_first  # number unchanged (not nulled/reassigned)

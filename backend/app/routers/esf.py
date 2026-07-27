@@ -300,9 +300,8 @@ def esf_delete(doc_uuid: str, request: Request,
         return HTMLResponse("Document not found", status_code=404)
     meta = {"number": doc.esf_number, "uuid": str(doc.uuid)}
     service.delete(doc, user)  # raises 409 if the doc is not an editable draft
-    # Record + commit AFTER the delete is staged so the audit row and the delete
-    # commit together (repo.delete stages db.delete without its own commit) — this
-    # also stops a failed delete from leaving a false "DELETE" audit entry.
+    # Record the audit only AFTER a successful delete, so a rejected delete (409 on
+    # a non-editable doc) never leaves a false "DELETE" entry.
     audit_service.record(db, audit_service.DELETE, user=user, request=request, meta=meta)
     return RedirectResponse(url="/dashboard", status_code=303)
 

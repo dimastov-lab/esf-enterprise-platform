@@ -3,7 +3,7 @@ import uuid as uuid_pkg
 from datetime import date, timedelta
 from typing import Dict, List, Optional, Tuple
 
-from sqlalchemy import asc, desc, exists, func, or_, select
+from sqlalchemy import asc, desc, exists, func, or_, select, text
 from sqlalchemy.orm import Session, selectinload
 
 from app.models import (
@@ -151,6 +151,17 @@ class ESFDocumentRepository:
             .one_or_none()
         )
 
+    def lock(self, doc: ESFDocument) -> None:
+        """Take a row lock on `doc` and refresh it to the committed state.
+
+        Used at the start of every mutating service method so concurrent
+        publish/save/validate/cancel/delete requests serialize on the document
+        row and re-check the *fresh* status under the lock (SELECT ... FOR UPDATE),
+        instead of acting on a stale in-memory copy. The lock is held until the
+        transaction commits.
+        """
+        self.db.refresh(doc, with_for_update=True)
+
     def add(self, doc: ESFDocument) -> ESFDocument:
         self.db.add(doc)
         self.db.commit()
@@ -172,13 +183,14 @@ class ESFDocumentRepository:
             is not None
         )
 
-    def count_numbered(self) -> int:
-        return (
-            self.db.query(func.count(ESFDocument.id))
-            .filter(ESFDocument.esf_number.isnot(None))
-            .scalar()
-            or 0
-        )
+    def next_number_seq(self) -> int:
+        """Atomically allocate the next ESF number counter from the DB sequence.
+
+        `nextval` is concurrency-safe (never hands the same value to two callers),
+        which removes the count()+1 race. Values are non-transactional (a rolled
+        back publish leaves a gap) — gaps in the counter are acceptable.
+        """
+        return int(self.db.execute(text("SELECT nextval('esf_number_seq')")).scalar())
 
     def latest_snapshot(self, doc: ESFDocument) -> Optional[ESFSnapshot]:
         return (
