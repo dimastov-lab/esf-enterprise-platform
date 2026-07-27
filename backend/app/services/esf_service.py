@@ -3,6 +3,7 @@ recompute totals, and own the draft create/edit/delete operations.
 
 Controller (router) -> this service -> repository -> DB.
 """
+import re
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from typing import List, Optional
@@ -28,6 +29,11 @@ from app.services import snapshot_service
 from app.services.validation_service import validate_document
 
 TWO = Decimal("0.01")
+
+# ESF numbers are digits + hyphens only (official format 000{YYYY}-004-{8 digits}).
+# Enforced on save so a user-supplied number can never carry markup into a
+# template (defence-in-depth against the inline-handler XSS class).
+_ESF_NUMBER_RE = re.compile(r"^[0-9-]{1,40}$")
 
 EDITABLE_STATUSES = {DocumentStatus.DRAFT, DocumentStatus.VALIDATED}
 
@@ -359,6 +365,15 @@ class ESFService:
         def g(key):
             return (form.get(key) or "").strip()
 
+        # Reject markup early (defence-in-depth for the inline-handler XSS class):
+        # ESF numbers are digits + hyphens only. Checked before any mutation so a
+        # bad value never leaves partial state behind.
+        if g("esf_number") and not _ESF_NUMBER_RE.match(g("esf_number")):
+            raise HTTPException(
+                status_code=400,
+                detail="Недопустимый номер ЭСФ (допустимы только цифры и дефис).",
+            )
+
         parties = {p.party_type: p for p in doc.parties}
         sup = parties.get(PartyType.SUPPLIER) or ESFParty(party_type=PartyType.SUPPLIER)
         buy = parties.get(PartyType.BUYER) or ESFParty(party_type=PartyType.BUYER)
@@ -401,17 +416,17 @@ class ESFService:
         self._rebuild_items(doc, form)
         self._recompute_totals(doc)
 
-        # Upsert supplier/buyer into the reusable counterparty directory (by INN).
+        # Upsert supplier/buyer into the OWNER's counterparty directory (by INN).
         from app.services.counterparty_service import CounterpartyService
         cp_service = CounterpartyService(self.db)
-        cp_service.upsert_party(sup)
-        cp_service.upsert_party(buy)
+        cp_service.upsert_party(sup, doc.owner_id)
+        cp_service.upsert_party(buy, doc.owner_id)
 
-        # Remember line items in the goods catalog (by name) — SMART GOODS.
+        # Remember line items in the owner's goods catalog (by name) — SMART GOODS.
         from app.services.good_service import GoodService
         good_service = GoodService(self.db)
         for it in doc.items:
-            good_service.upsert_item(it)
+            good_service.upsert_item(it, doc.owner_id)
 
         # editing a VALIDATED draft invalidates the prior validation
         if doc.status == DocumentStatus.VALIDATED:
@@ -419,6 +434,7 @@ class ESFService:
 
         # Header set last (after the item-rebuild flush) so a duplicate esf_number
         # surfaces only at commit and is turned into a clean 409, not a mid-flush 500.
+        # (Format was validated at the top of save(), before any mutation.)
         doc.esf_number = g("esf_number") or None
         doc.issue_date = _parse_date(g("issue_date"))
 

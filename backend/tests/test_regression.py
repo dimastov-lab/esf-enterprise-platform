@@ -768,3 +768,61 @@ def test_goods_autocomplete_in_editor_only(admin, anon):
     admin.post(f"/esf/{uuid}/publish", content=urlencode(valid_pairs()), headers=FORM)
     public = anon.get(f"/esf/check-esf?documentUUID={uuid}").text
     assert "goods-dd" not in public and "/api/goods/search" not in public
+
+
+# ---- H1: per-user directory isolation --------------------------------
+def test_counterparty_directory_isolated_per_user(admin, issuer):
+    """A counterparty saved by one user must not surface in another user's lookup."""
+    ua = new_draft(admin)
+    save(admin, ua, valid_pairs())            # admin upserts supplier 01610201710254
+    # issuer must not see admin's directory entries
+    assert issuer.get("/api/counterparties/search?q=01610201710254").json()["results"] == []
+    assert all("Ава" not in (c.get("name") or "")
+               for c in issuer.get("/api/counterparties/search?q=Ава").json()["results"])
+    assert issuer.get("/api/counterparties/recent").json()["results"] == []
+    # admin still sees their own
+    assert any(c["inn"] == "01610201710254"
+               for c in admin.get("/api/counterparties/search?q=01610201710254").json()["results"])
+
+
+def test_goods_directory_isolated_per_user(admin, issuer):
+    ua = new_draft(admin)
+    save(admin, ua, valid_pairs())            # admin upserts good "Строительные леса"
+    assert issuer.get("/api/goods/search?q=Строит").json()["results"] == []
+    assert issuer.get("/api/goods/recent").json()["results"] == []
+    assert any("Строительные" in (g.get("name") or "")
+               for g in admin.get("/api/goods/search?q=Строит").json()["results"])
+
+
+# ---- C1: stored-XSS hardening ----------------------------------------
+def test_esf_number_rejects_markup(admin):
+    """User-supplied ESF numbers are restricted to digits/hyphens, blocking the
+    inline-handler XSS vector; a well-formed number is still accepted."""
+    uuid = new_draft(admin)
+    bad = save(admin, uuid, valid_pairs() + [("esf_number", "');alert(1);('")])
+    assert bad.status_code == 400
+    ok = save(admin, uuid, valid_pairs() + [("esf_number", "0002026-004-00000009")])
+    assert ok.status_code in (200, 303)
+
+
+def test_confirm_handlers_have_no_inline_number(admin):
+    """Delete/cancel confirmations read the number from a data-* attribute rather
+    than interpolating it into an inline onsubmit handler."""
+    uuid = new_draft(admin)
+    save(admin, uuid, valid_pairs())
+    dash = admin.get("/dashboard").text
+    assert 'data-confirm="delete"' in dash
+    assert "onsubmit=\"return confirm('Удалить документ" not in dash
+    admin.post(f"/esf/{uuid}/publish", content=urlencode(valid_pairs()), headers=FORM)
+    view = admin.get(f"/esf/{uuid}").text
+    assert 'data-confirm="cancel"' in view
+    assert "onsubmit=\"return confirm('Аннулировать" not in view
+
+
+def test_directory_dropdowns_use_textcontent(admin):
+    """The counterparty/goods lookup dropdowns build rows with textContent, not
+    innerHTML fed with directory data (stored-XSS fix)."""
+    uuid = new_draft(admin)
+    html = admin.get(f"/esf/{uuid}").text
+    assert "cpName.textContent" in html and "gName.textContent" in html
+    assert '<span class="cp-inn">\' + (cp.inn' not in html
