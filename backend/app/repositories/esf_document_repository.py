@@ -124,8 +124,14 @@ class ESFDocumentRepository:
         return {s.value: c for s, c in q.group_by(ESFDocument.status).all()}
 
     def created_counts_since(self, user, since: date) -> Dict[date, int]:
-        """One GROUP BY query — documents created per day since `since`."""
-        day = func.date(ESFDocument.created_at)
+        """One GROUP BY query — documents created per day since `since`.
+
+        Buckets by the UTC calendar date so it lines up with `dashboard_stats`,
+        which derives "today" from `datetime.now(timezone.utc)`. Grouping in the
+        DB session's local timezone previously skewed the "today" count near the
+        UTC day boundary.
+        """
+        day = func.date(func.timezone("UTC", ESFDocument.created_at))
         q = self.db.query(day, func.count(ESFDocument.id)).filter(ESFDocument.created_at >= since)
         if not user.is_admin:
             q = q.filter(ESFDocument.owner_id == user.id)
