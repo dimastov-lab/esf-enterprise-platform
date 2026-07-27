@@ -116,7 +116,9 @@ def _all_fields_pairs():
         ("director_name", "ПОДПИСАНТ-Ω"),
         ("item_tnved", "7308400009"), ("item_name", "ТОВАР-Ω"),
         ("item_unit", "ЕД-Ω"), ("item_price", "116.49850"), ("item_qty", "21000.00000"),
-        ("item_vat_rate", "12"), ("item_vat_amount", "0"), ("item_nsp", "0"),
+        # rate 0 keeps VAT (0) consistent with the base — the rate isn't a traced
+        # Ω-marker; VAT consistency is exercised by test_validation_new_rules.
+        ("item_vat_rate", "0"), ("item_vat_amount", "0"), ("item_nsp", "0"),
         ("item_customs", "ТАМОЖ-Ω-456"),
     ]
 
@@ -1033,3 +1035,35 @@ def test_serialize_published_detects_tampered_snapshot(db_session):
     db_session.add(bad); db_session.flush()                # newer -> becomes latest_snapshot
     with pytest.raises(HTTPException):
         svc.serialize_published(d)
+
+
+# ---- M10: validation rules (buyer INN, foreign-currency rate, VAT base) ----
+def test_validation_new_rules(admin, db_session):
+    import uuid as U
+
+    from app.models import ESFDocument
+    from app.services.validation_service import validate_document
+
+    def errs_for(pairs):
+        u = new_draft(admin)
+        save(admin, u, pairs)
+        doc = db_session.query(ESFDocument).filter(ESFDocument.uuid == U.UUID(u)).one()
+        return validate_document(doc)
+
+    def over(pairs, **repl):
+        return [(k, repl.get(k, v)) for (k, v) in pairs]
+
+    # a fully-consistent document passes (guards the happy path / no false positives)
+    assert errs_for(valid_pairs()) == []
+    # buyer INN with letters -> rejected (symmetric with the supplier check)
+    assert any("ИНН покупателя должен содержать только цифры" in e
+               for e in errs_for(over(valid_pairs(), buyer_inn="AB12")))
+    # foreign currency (643) without an exchange rate -> rejected
+    assert any("иностранной валюты необходимо указать курс" in e
+               for e in errs_for(over(valid_pairs(), currency_rate="")))
+    # VAT that does not match rate x base (12% declared, 0 entered) -> rejected
+    assert any("не соответствует ставке" in e
+               for e in errs_for(over(valid_pairs(), item_vat_rate="12", item_vat_amount="0")))
+    # negative VAT -> rejected
+    assert any("сумма НДС не может быть отрицательной" in e
+               for e in errs_for(over(valid_pairs(), item_vat_rate="0", item_vat_amount="-5")))
