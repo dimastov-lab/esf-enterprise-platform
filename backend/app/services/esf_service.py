@@ -3,6 +3,7 @@ recompute totals, and own the draft create/edit/delete operations.
 
 Controller (router) -> this service -> repository -> DB.
 """
+import logging
 import re
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
@@ -27,6 +28,8 @@ from app.models import (
 from app.repositories.esf_document_repository import ESFDocumentRepository
 from app.services import snapshot_service
 from app.services.validation_service import validate_document
+
+_log = logging.getLogger("esf.error")
 
 TWO = Decimal("0.01")
 
@@ -529,9 +532,27 @@ class ESFService:
         return []
 
     def serialize_published(self, doc: ESFDocument) -> dict:
-        """Render data for a published doc from its immutable snapshot."""
+        """Render data for a published doc from its immutable snapshot.
+
+        The stored sha256 is re-verified against the payload on every read, so any
+        DB-level tampering with `payload_json` (which the append-only triggers make
+        hard, but this is defence-in-depth) is caught and fails closed instead of
+        serving a corrupted legal record.
+        """
         snap = self.repo.latest_snapshot(doc)
-        return snap.payload_json if snap else self.serialize(doc)
+        if snap is None:
+            return self.serialize(doc)
+        if snapshot_service.content_hash(snap.payload_json) != snap.sha256:
+            _log.error(
+                "snapshot integrity check failed",
+                extra={"document_uuid": str(doc.uuid), "snapshot_id": snap.id},
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="Снимок документа повреждён (нарушена целостность). "
+                       "Обратитесь к администратору.",
+            )
+        return snap.payload_json
 
     def _rebuild_items(self, doc: ESFDocument, form) -> None:
         codes = form.getlist("item_tnved")

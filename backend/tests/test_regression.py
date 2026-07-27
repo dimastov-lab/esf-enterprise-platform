@@ -941,3 +941,95 @@ def test_second_publish_creates_no_second_snapshot(admin, db_session):
     doc2 = db_session.query(ESFDocument).filter(ESFDocument.uuid == U.UUID(uuid)).one()
     assert len(doc2.snapshots) == 1               # still exactly one
     assert doc2.esf_number == number_after_first  # number unchanged (not nulled/reassigned)
+
+
+# ---- H3: DB-level immutability (snapshots + audit log) ----------------
+def test_immutability_triggers_installed(db_session):
+    from sqlalchemy import text
+    rows = db_session.execute(text(
+        "SELECT tgrelid::regclass::text AS tbl FROM pg_trigger "
+        "WHERE tgname IN ('esf_snapshots_no_update_delete', 'audit_logs_no_tamper')"
+    )).all()
+    tables = {r[0] for r in rows}
+    assert "esf_snapshots" in tables and "audit_logs" in tables
+
+
+def test_snapshot_immutable_at_db_level():
+    """Raw UPDATE/DELETE (which bypass the ORM events) are blocked by the trigger."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session as _S
+
+    from app.db.session import engine
+    from app.models import DocumentStatus, ESFDocument, ESFSnapshot, User
+    conn = engine.connect()
+    sess = _S(bind=conn)
+    try:
+        u = User(username="h3_snap_user", hashed_password="x", is_admin=False, is_active=True)
+        sess.add(u); sess.flush()
+        d = ESFDocument(owner_id=u.id, status=DocumentStatus.PUBLISHED)
+        sess.add(d); sess.flush()
+        s = ESFSnapshot(document_id=d.id, payload_json={"k": "v"}, sha256="abc")
+        sess.add(s); sess.flush()
+        sid = s.id
+        sess.expunge_all()   # detach so raw SQL below isn't intercepted by the ORM
+        for stmt in (text("UPDATE esf_snapshots SET sha256 = 'z' WHERE id = :i"),
+                     text("DELETE FROM esf_snapshots WHERE id = :i")):
+            sp = sess.begin_nested()
+            with pytest.raises(Exception):
+                sess.execute(stmt, {"i": sid})
+            sp.rollback()
+    finally:
+        sess.rollback(); sess.close(); conn.close()
+
+
+def test_audit_log_append_only_at_db_level():
+    """Audit content is immutable and rows cannot be deleted, but the FK-cascade
+    SET NULL (document_id/user_id) that a legitimate delete triggers is allowed."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session as _S
+
+    from app.db.session import engine
+    from app.models import AuditLog
+    conn = engine.connect()
+    sess = _S(bind=conn)
+    try:
+        a = AuditLog(action="LOGIN", ip_address="1.1.1.1")
+        sess.add(a); sess.flush()
+        aid = a.id
+        sess.expunge_all()
+        sp = sess.begin_nested()
+        with pytest.raises(Exception):                          # content change blocked
+            sess.execute(text("UPDATE audit_logs SET action = 'HACKED' WHERE id = :i"), {"i": aid})
+        sp.rollback()
+        sp = sess.begin_nested()
+        with pytest.raises(Exception):                          # delete blocked
+            sess.execute(text("DELETE FROM audit_logs WHERE id = :i"), {"i": aid})
+        sp.rollback()
+        sp = sess.begin_nested()
+        sess.execute(text("UPDATE audit_logs SET document_id = NULL WHERE id = :i"), {"i": aid})
+        sp.rollback()                                           # FK-cascade allowed (no raise)
+    finally:
+        sess.rollback(); sess.close(); conn.close()
+
+
+def test_serialize_published_detects_tampered_snapshot(db_session):
+    """serialize_published re-verifies the sha256 and fails closed on a mismatch."""
+    from fastapi import HTTPException
+
+    from app.models import DocumentStatus, ESFDocument, User
+    from app.models.esf_snapshot import ESFSnapshot
+    from app.services import snapshot_service
+    from app.services.esf_service import ESFService
+    u = User(username="h3_tamper_user", hashed_password="x", is_admin=False, is_active=True)
+    db_session.add(u); db_session.flush()
+    d = ESFDocument(owner_id=u.id, status=DocumentStatus.PUBLISHED)
+    db_session.add(d); db_session.flush()
+    good = ESFSnapshot(document_id=d.id, payload_json={"a": 1},
+                       sha256=snapshot_service.content_hash({"a": 1}))
+    db_session.add(good); db_session.flush()
+    svc = ESFService(db_session)
+    assert svc.serialize_published(d) == {"a": 1}          # valid snapshot returns payload
+    bad = ESFSnapshot(document_id=d.id, payload_json={"a": 2}, sha256="deadbeef")
+    db_session.add(bad); db_session.flush()                # newer -> becomes latest_snapshot
+    with pytest.raises(HTTPException):
+        svc.serialize_published(d)
