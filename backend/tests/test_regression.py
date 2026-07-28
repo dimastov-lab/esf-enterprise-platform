@@ -266,7 +266,7 @@ def test_publish_is_atomic_when_snapshot_fails(monkeypatch):
     uname = "atomic_" + U.uuid4().hex[:10]
     user = doc = None
     try:
-        AuthService(s).create_user(uname, "pw", ROLE_ADMIN)
+        AuthService(s).create_user(uname, "pw", ROLE_ADMIN, enforce_password_policy=False)
         s.commit()
         user = s.query(User).filter(User.username == uname).one()
         svc = ESFService(s)
@@ -1100,3 +1100,91 @@ def test_cancelled_pdf_renders_from_snapshot(admin):
     pdf = admin.get(f"/pdf/{uuid}.pdf").content
     txt = (PdfReader(io.BytesIO(pdf)).pages[0].extract_text() or "")
     assert "проект" not in txt.lower()                     # not rendered as a draft
+
+
+# ---- audit #2 block 4: adversarial / negative coverage ----------------
+def test_cross_user_idor_denied(issuer, issuer2):
+    """A second issuer is denied on every route touching another issuer's document."""
+    uuid = new_draft(issuer)
+    save(issuer, uuid, valid_pairs())
+    assert issuer2.get(f"/esf/{uuid}").status_code == 403
+    assert issuer2.get(f"/pdf/{uuid}.pdf").status_code == 403
+    for path in (f"/esf/{uuid}/save", f"/esf/{uuid}/publish", f"/esf/{uuid}/validate",
+                 f"/esf/{uuid}/delete", f"/esf/{uuid}/duplicate", f"/esf/{uuid}/correct",
+                 f"/esf/{uuid}/cancel"):
+        r = issuer2.post(path, content=urlencode(valid_pairs()), headers=FORM)
+        assert r.status_code == 403, path
+    # never surfaces in issuer2's own listing
+    assert all(row["uuid"] != uuid for row in issuer2.get("/api/esf").json()["items"])
+    # owner is untouched
+    assert issuer.get(f"/esf/{uuid}").status_code == 200
+
+
+def test_admin_create_user_validation(admin, issuer):
+    """POST /admin/users: happy path + duplicate/unknown-role/short-password → 400,
+    and a non-admin is forbidden."""
+    ok = admin.post("/admin/users", data={
+        "new_username": "block4_user", "new_password": "longenoughpassword", "role": "ISSUER"})
+    assert ok.status_code in (200, 303)
+    dup = admin.post("/admin/users", data={
+        "new_username": "block4_user", "new_password": "longenoughpassword", "role": "ISSUER"})
+    assert dup.status_code == 400
+    bad_role = admin.post("/admin/users", data={
+        "new_username": "block4_user2", "new_password": "longenoughpassword", "role": "SUPERUSER"})
+    assert bad_role.status_code == 400
+    weak = admin.post("/admin/users", data={
+        "new_username": "block4_user3", "new_password": "short", "role": "ISSUER"})
+    assert weak.status_code == 400
+    forbidden = issuer.post("/admin/users", data={
+        "new_username": "block4_user4", "new_password": "longenoughpassword", "role": "ISSUER"})
+    assert forbidden.status_code == 403
+
+
+def test_multi_item_and_currency_totals(admin, db_session):
+    """Multi-row rebuild: per-line amounts, column sums, row-number reindex, and
+    currency_total = grand / rate."""
+    import uuid as U
+    from decimal import Decimal
+
+    from app.models import ESFDocument
+    uuid = new_draft(admin)
+    base = [(k, v) for (k, v) in valid_pairs() if not k.startswith("item_")]  # keeps currency 643 @ 1.2263
+
+    def item(name, price, qty, vat):
+        return [("item_name", name), ("item_unit", "шт"), ("item_price", price),
+                ("item_qty", qty), ("item_vat_rate", "0"), ("item_vat_amount", vat),
+                ("item_nsp", "0")]
+    pairs = base + item("A", "10.00", "2", "0") + item("B", "5.50", "3", "0") + item("C", "100.00", "1", "1.00")
+    save(admin, uuid, pairs)
+    doc = db_session.query(ESFDocument).filter(ESFDocument.uuid == U.UUID(uuid)).one()
+    items = sorted(doc.items, key=lambda x: x.row_number)
+    assert [it.row_number for it in items] == [1, 2, 3]
+    assert [str(it.amount) for it in items] == ["20.00", "16.50", "100.00"]
+    t = doc.totals
+    assert str(t.subtotal) == "136.50" and str(t.vat_total) == "1.00" and str(t.grand_total) == "137.50"
+    assert t.currency_total == (Decimal("137.50") / Decimal("1.2263")).quantize(Decimal("0.01"))
+
+
+def test_xss_payload_rendered_escaped(admin, anon):
+    """A stored HTML/JS payload in a free-text field renders escaped (autoescape) in
+    the owner view and the public page — the real end-to-end XSS negative."""
+    uuid = new_draft(admin)
+    payload = '<script>alert(1)</script>"><img src=x onerror=alert(2)>'
+    pairs = [(k, (payload if k == "supplier_name" else v)) for (k, v) in valid_pairs()]
+    save(admin, uuid, pairs)
+    admin.post(f"/esf/{uuid}/publish", content=urlencode(pairs), headers=FORM)
+    for html in (admin.get(f"/esf/{uuid}").text,
+                 anon.get(f"/esf/check-esf?documentUUID={uuid}").text):
+        assert "<script>alert(1)" not in html      # no raw <script> tag
+        assert "<img src=x onerror" not in html     # no raw <img> handler tag
+        assert "&lt;script&gt;alert(1)" in html     # escaped form is what actually renders
+
+
+def test_same_inn_both_parties_saves_cleanly(admin):
+    """Supplier INN == buyer INN must not collide on the per-owner counterparty
+    unique and be misreported as an ESF-number conflict."""
+    uuid = new_draft(admin)
+    pairs = [(k, ("01610201710254" if k in ("supplier_inn", "buyer_inn") else v))
+             for (k, v) in valid_pairs()]
+    r = save(admin, uuid, pairs)
+    assert r.status_code in (200, 303)

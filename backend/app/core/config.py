@@ -48,6 +48,9 @@ class Settings:
     DB_POOL_SIZE: int = int(os.getenv("DB_POOL_SIZE", "5"))
     DB_MAX_OVERFLOW: int = int(os.getenv("DB_MAX_OVERFLOW", "10"))
     DB_STATEMENT_TIMEOUT_MS: int = int(os.getenv("DB_STATEMENT_TIMEOUT_MS", "30000"))
+    # Cap how long a mutating request waits on a contended row lock (FOR UPDATE)
+    # before failing fast with a clean 409 instead of hanging for statement_timeout.
+    DB_LOCK_TIMEOUT_MS: int = int(os.getenv("DB_LOCK_TIMEOUT_MS", "5000"))
 
     @property
     def is_production(self) -> bool:

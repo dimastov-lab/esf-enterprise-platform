@@ -10,7 +10,7 @@ from decimal import Decimal, InvalidOperation
 from typing import List, Optional
 
 from fastapi import HTTPException
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
 from app.core.security import require_owner_or_admin
@@ -288,7 +288,7 @@ class ESFService:
         """Annul a PUBLISHED ESF. The immutable snapshot is preserved (history);
         only the document's lifecycle status changes to CANCELLED."""
         require_owner_or_admin(doc, user)
-        self.repo.lock(doc)              # serialize + re-read status under a row lock
+        self._lock(doc)                  # serialize + re-read status under a row lock
         if doc.status != DocumentStatus.PUBLISHED:
             raise HTTPException(status_code=409,
                                 detail="Аннулировать можно только опубликованный документ.")
@@ -366,10 +366,23 @@ class ESFService:
                 detail="Документ опубликован и не может быть изменён.",
             )
 
+    def _lock(self, doc: ESFDocument) -> None:
+        """Row-lock the document (re-reading its status under the lock). A contended
+        lock fails fast via lock_timeout as a clean 409 instead of hanging for
+        statement_timeout and surfacing an opaque 500."""
+        try:
+            self.repo.lock(doc)
+        except OperationalError:
+            self.db.rollback()
+            raise HTTPException(
+                status_code=409,
+                detail="Документ сейчас изменяется другим процессом. Повторите попытку.",
+            )
+
     # ---- delete --------------------------------------------------------
     def delete(self, doc: ESFDocument, user: User) -> None:
         require_owner_or_admin(doc, user)
-        self.repo.lock(doc)              # serialize + re-read status under a row lock
+        self._lock(doc)                  # serialize + re-read status under a row lock
         # Only editable drafts can be deleted. A PUBLISHED or CANCELLED document
         # has an immutable snapshot (FK RESTRICT); deleting it previously raised
         # an unhandled 500 — reject it cleanly with a 409 instead.
@@ -384,7 +397,7 @@ class ESFService:
     # ---- save ----------------------------------------------------------
     def save(self, doc: ESFDocument, user: User, form) -> ESFDocument:
         require_owner_or_admin(doc, user)
-        self.repo.lock(doc)              # serialize + re-read status under a row lock
+        self._lock(doc)                  # serialize + re-read status under a row lock
         self._require_editable(doc)
 
         def g(key):
@@ -445,7 +458,12 @@ class ESFService:
         from app.services.counterparty_service import CounterpartyService
         cp_service = CounterpartyService(self.db)
         cp_service.upsert_party(sup, doc.owner_id)
-        cp_service.upsert_party(buy, doc.owner_id)
+        # Skip the buyer upsert when both sides share an INN: a second pending
+        # Counterparty(owner, inn) would collide on uq_counterparties_owner_inn at
+        # commit and be misreported as an "ESF number" conflict.
+        _sup_inn = (sup.inn or "").strip()
+        if not (_sup_inn and (buy.inn or "").strip() == _sup_inn):
+            cp_service.upsert_party(buy, doc.owner_id)
 
         # Remember line items in the owner's goods catalog (by name) — SMART GOODS.
         from app.services.good_service import GoodService
@@ -478,7 +496,7 @@ class ESFService:
     def validate(self, doc: ESFDocument, user: User) -> List[str]:
         """Run the Validation Engine. On success: status DRAFT -> VALIDATED."""
         require_owner_or_admin(doc, user)
-        self.repo.lock(doc)              # serialize + re-read status under a row lock
+        self._lock(doc)                  # serialize + re-read status under a row lock
         self._require_editable(doc)
         errors = validate_document(doc)
         doc.status = DocumentStatus.DRAFT if errors else DocumentStatus.VALIDATED
@@ -505,7 +523,7 @@ class ESFService:
         Returns validation errors (non-empty = not published).
         """
         require_owner_or_admin(doc, user)
-        self.repo.lock(doc)              # serialize: re-check status under a row lock
+        self._lock(doc)                  # serialize: re-check status under a row lock
         self._require_editable(doc)
         errors = validate_document(doc)
         if errors:

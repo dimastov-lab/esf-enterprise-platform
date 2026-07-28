@@ -62,8 +62,8 @@ def override_db(db_session):
 @pytest.fixture
 def seed_users(db_session):
     svc = AuthService(db_session)
-    svc.create_user("t_admin", "pw", ROLE_ADMIN)
-    svc.create_user("t_issuer", "pw", ROLE_ISSUER)
+    svc.create_user("t_admin", "pw", ROLE_ADMIN, enforce_password_policy=False)
+    svc.create_user("t_issuer", "pw", ROLE_ISSUER, enforce_password_policy=False)
     db_session.commit()
 
 
@@ -90,6 +90,15 @@ def admin(override_db, seed_users):
 @pytest.fixture
 def issuer(override_db, seed_users):
     return _login("t_issuer")
+
+
+@pytest.fixture
+def issuer2(override_db, seed_users, db_session):
+    """A SECOND issuer, for cross-user (IDOR) denial tests."""
+    AuthService(db_session).create_user(
+        "t_issuer2", "pw", ROLE_ISSUER, enforce_password_policy=False)
+    db_session.commit()
+    return _login("t_issuer2")
 
 
 @pytest.fixture
