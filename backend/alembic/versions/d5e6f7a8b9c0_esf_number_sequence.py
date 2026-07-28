@@ -34,12 +34,14 @@ def upgrade() -> None:
             GREATEST(
                 (SELECT COALESCE(MAX(CAST(split_part(esf_number, '-', 3) AS BIGINT)), 0)
                    FROM esf_documents
-                  WHERE esf_number ~ '^[0-9]+-004-[0-9]+$'),
+                  WHERE esf_number ~ '^[0-9]+-004-[0-9]+$'
+                    AND length(split_part(esf_number, '-', 3)) <= 18),
                 1
             ),
             (SELECT EXISTS (
                 SELECT 1 FROM esf_documents
                  WHERE esf_number ~ '^[0-9]+-004-[0-9]+$'
+                   AND length(split_part(esf_number, '-', 3)) <= 18
             ))
         )
         """

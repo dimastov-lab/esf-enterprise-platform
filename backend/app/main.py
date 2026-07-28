@@ -72,6 +72,9 @@ app.add_middleware(
     secret_key=settings.SECRET_KEY,
     same_site="lax",
     https_only=_prod,
+    max_age=8 * 60 * 60,   # 8h — bound the exposure window of a captured cookie
+                           # (Starlette defaults to 14 days). is_active is re-checked
+                           # per request, so a deactivated user is revoked immediately.
 )
 
 # CWD-safe absolute path (avoids the relative-mount bug from the legacy code).

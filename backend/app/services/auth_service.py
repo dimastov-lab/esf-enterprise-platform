@@ -18,6 +18,10 @@ ROLES = {
     ROLE_ISSUER: "Создание и публикация ЭСФ",
 }
 
+# Minimum password length for human-created accounts (admin UI, bootstrap script).
+# Internal dev/test seeds opt out via enforce_password_policy=False.
+MIN_PASSWORD_LEN = 12
+
 
 class AuthService:
     def __init__(self, db: Session):
@@ -38,10 +42,13 @@ class AuthService:
     def list_users(self) -> List[User]:
         return self.repo.list_all()
 
-    def create_user(self, username: str, password: str, role: str) -> User:
+    def create_user(self, username: str, password: str, role: str,
+                    enforce_password_policy: bool = True) -> User:
         username = (username or "").strip()
         if not username or not password:
             raise ValueError("Имя пользователя и пароль обязательны.")
+        if enforce_password_policy and len(password) < MIN_PASSWORD_LEN:
+            raise ValueError(f"Пароль должен быть не короче {MIN_PASSWORD_LEN} символов.")
         if self.repo.username_exists(username):
             raise ValueError("Пользователь с таким именем уже существует.")
         if role not in ROLES:
@@ -60,4 +67,5 @@ class AuthService:
         """Dev convenience: guarantee roles exist and at least one admin (admin/admin123)."""
         self.ensure_roles()
         if not self.repo.any_admin_exists():
-            self.create_user("admin", "admin123", ROLE_ADMIN)
+            # Dev convenience credential — exempt from the production password policy.
+            self.create_user("admin", "admin123", ROLE_ADMIN, enforce_password_policy=False)
