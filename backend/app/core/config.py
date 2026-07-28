@@ -38,10 +38,20 @@ class Settings:
         "1", "true", "yes", "on",
     )
 
-    # Public base URL used to build absolute QR / verification links.
-    # Matches the official Kyrgyz ESF portal so QR codes have the same format as the
-    # reference form (https://esf.salyk.kg/esf/check-esf?documentUUID=...).
-    PUBLIC_BASE_URL: str = os.getenv("PUBLIC_BASE_URL", "https://esf.salyk.kg")
+    # Public base URL used to build absolute QR / verification links. This MUST be
+    # the deployment's OWN host. There is intentionally NO default and the official
+    # government portal is explicitly rejected in production (see validate_for_runtime):
+    # pointing QR / "verification" links at esf.salyk.kg would make locally-issued,
+    # legally-invalid documents appear to verify against the real state system.
+    # In dev (empty) the QR encodes a bare relative path.
+    PUBLIC_BASE_URL: str = os.getenv("PUBLIC_BASE_URL", "")
+
+    # Non-official DEMO marker. Documents are visual clones of the official ГНС form
+    # but carry NO legal validity, so every render shows a DEMO watermark by default.
+    # Disabling it requires a deliberate, explicit env override.
+    SHOW_DEMO_WATERMARK: bool = os.getenv("SHOW_DEMO_WATERMARK", "true").strip().lower() not in (
+        "0", "false", "no", "off",
+    )
 
     # Connection pool + a hard per-statement timeout (ms) so no single query can
     # hang a worker. Tunable per deployment.
@@ -74,6 +84,22 @@ class Settings:
                 f"{_MIN_SECRET_LEN} characters when ENVIRONMENT is production "
                 "(sessions are signed with it). Generate one with: "
                 'python -c "import secrets; print(secrets.token_hex(32))"'
+            )
+        # PUBLIC_BASE_URL must be this deployment's own host, never the official
+        # government portal — otherwise QR / verification links impersonate the real
+        # state system for documents that have no legal validity.
+        base = (self.PUBLIC_BASE_URL or "").strip().lower()
+        if not base:
+            raise RuntimeError(
+                "PUBLIC_BASE_URL must be set to this deployment's own base URL "
+                "(e.g. https://esf.example.com) when ENVIRONMENT is production; it is "
+                "used to build absolute QR / verification links."
+            )
+        if "salyk.kg" in base:
+            raise RuntimeError(
+                "PUBLIC_BASE_URL must NOT point at the official Kyrgyz tax portal "
+                "(salyk.kg). Documents issued by this platform are non-official and "
+                "must verify against this deployment's own host, not the state system."
             )
 
 

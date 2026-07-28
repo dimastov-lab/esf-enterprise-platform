@@ -15,6 +15,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
+from app.core.config import settings
 from app.core.security import get_csrf_token, get_current_user, require_csrf
 from app.db.session import get_db
 from app.models import DocumentStatus, User
@@ -24,6 +25,9 @@ from app.services.pdf_service import render_pdf
 
 _TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
+# DEMO watermark visibility is a deployment-wide setting; expose it to every
+# form.html render (edit / view / public / pdf / batch) via one Jinja global.
+templates.env.globals["show_demo_watermark"] = settings.SHOW_DEMO_WATERMARK
 
 router = APIRouter()
 
@@ -349,12 +353,17 @@ def esf_pdf(doc_uuid: str, request: Request,
 
 @router.get("/qr/{doc_uuid}.png")
 def esf_qr(doc_uuid: str, db: Session = Depends(get_db)):
-    """QR PNG (open). Encodes the public check URL only — no document data."""
+    """QR PNG (open, read-only). Encodes the public check URL only — no document
+    data. Restricted to PUBLISHED documents (matching /esf/check-esf) and generated
+    in memory: an unauthenticated GET must never write to disk or the DB. The QR is
+    persisted at publish time / on the owner's result page."""
+    from app.services.qr_service import qr_png_bytes, qr_target
+
     service = ESFService(db)
     doc = service.get_public(doc_uuid)
-    if doc is None:
+    if doc is None or doc.status != DocumentStatus.PUBLISHED:
         return HTMLResponse("Not found", status_code=404)
-    png = service.ensure_qr(doc)
+    png = qr_png_bytes(qr_target(str(doc.uuid)))
     return Response(
         content=png,
         media_type="image/png",
