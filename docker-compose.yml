@@ -7,7 +7,9 @@ services:
       POSTGRES_USER: esf
       POSTGRES_PASSWORD: esf
     ports:
-      - "5432:5432"
+      # Loopback only — the dev DB (trivial esf/esf creds) must not be reachable
+      # off-host. Use 127.0.0.1 so it is bound to localhost, not 0.0.0.0.
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

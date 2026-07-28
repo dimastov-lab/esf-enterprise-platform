@@ -254,7 +254,7 @@
                 <a href="/pdf/{{ r.uuid }}.pdf" target="_blank" rel="noopener">PDF</a>
                 {% if not r.published %}
                 <form method="post" action="/esf/{{ r.uuid }}/delete"
-                      onsubmit="return confirm('Удалить документ {{ r.number }} безвозвратно? Это действие необратимо.');">
+                      data-confirm="delete" data-confirm-number="{{ r.number }}">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                   <button type="submit" class="del">Удалить</button>
                 </form>
@@ -294,6 +294,15 @@
   </div>
 
   <script>
+    // Safe delete confirm: the document number is read from a data-* attribute
+    // (escaped in attribute context), never interpolated into an inline handler.
+    document.addEventListener('submit', function (e) {
+      var f = e.target;
+      if (!f || typeof f.getAttribute !== 'function') return;
+      if (f.getAttribute('data-confirm') !== 'delete') return;
+      var num = f.getAttribute('data-confirm-number') || '';
+      if (!window.confirm('Удалить документ ' + num + ' безвозвратно? Это действие необратимо.')) e.preventDefault();
+    });
     (function(){
       // Server-side dashboard: search/sort/filter/pagination are URL-driven (the
       // form submits to /dashboard). This script only adds keyboard + row-click.

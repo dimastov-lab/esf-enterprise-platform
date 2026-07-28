@@ -8,7 +8,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, Integer, Numeric, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -18,6 +18,11 @@ class Good(Base):
     __tablename__ = "goods"
 
     id: Mapped[int] = mapped_column(primary_key=True)
+    # Owner scoping (H1): the catalog is per-user, not a shared global directory.
+    # Nullable only for pre-migration rows; new rows always set it.
+    owner_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
+    )
     code: Mapped[Optional[str]] = mapped_column(String(50), index=True)   # ТН ВЭД
     name: Mapped[Optional[str]] = mapped_column(String(500), index=True)  # dedup key (case-insensitive)
     unit: Mapped[Optional[str]] = mapped_column(String(50))

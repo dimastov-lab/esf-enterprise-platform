@@ -6,6 +6,7 @@ All tests run inside a rolled-back transaction (see conftest.py).
 """
 from urllib.parse import urlencode
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -115,7 +116,9 @@ def _all_fields_pairs():
         ("director_name", "ПОДПИСАНТ-Ω"),
         ("item_tnved", "7308400009"), ("item_name", "ТОВАР-Ω"),
         ("item_unit", "ЕД-Ω"), ("item_price", "116.49850"), ("item_qty", "21000.00000"),
-        ("item_vat_rate", "12"), ("item_vat_amount", "0"), ("item_nsp", "0"),
+        # rate 0 keeps VAT (0) consistent with the base — the rate isn't a traced
+        # Ω-marker; VAT consistency is exercised by test_validation_new_rules.
+        ("item_vat_rate", "0"), ("item_vat_amount", "0"), ("item_nsp", "0"),
         ("item_customs", "ТАМОЖ-Ω-456"),
     ]
 
@@ -768,3 +771,299 @@ def test_goods_autocomplete_in_editor_only(admin, anon):
     admin.post(f"/esf/{uuid}/publish", content=urlencode(valid_pairs()), headers=FORM)
     public = anon.get(f"/esf/check-esf?documentUUID={uuid}").text
     assert "goods-dd" not in public and "/api/goods/search" not in public
+
+
+# ---- H1: per-user directory isolation --------------------------------
+def test_counterparty_directory_isolated_per_user(admin, issuer):
+    """A counterparty saved by one user must not surface in another user's lookup."""
+    ua = new_draft(admin)
+    save(admin, ua, valid_pairs())            # admin upserts supplier 01610201710254
+    # issuer must not see admin's directory entries
+    assert issuer.get("/api/counterparties/search?q=01610201710254").json()["results"] == []
+    assert all("Ава" not in (c.get("name") or "")
+               for c in issuer.get("/api/counterparties/search?q=Ава").json()["results"])
+    assert issuer.get("/api/counterparties/recent").json()["results"] == []
+    # admin still sees their own
+    assert any(c["inn"] == "01610201710254"
+               for c in admin.get("/api/counterparties/search?q=01610201710254").json()["results"])
+
+
+def test_goods_directory_isolated_per_user(admin, issuer):
+    ua = new_draft(admin)
+    save(admin, ua, valid_pairs())            # admin upserts good "Строительные леса"
+    assert issuer.get("/api/goods/search?q=Строит").json()["results"] == []
+    assert issuer.get("/api/goods/recent").json()["results"] == []
+    assert any("Строительные" in (g.get("name") or "")
+               for g in admin.get("/api/goods/search?q=Строит").json()["results"])
+
+
+# ---- C1: stored-XSS hardening ----------------------------------------
+def test_esf_number_rejects_markup(admin):
+    """User-supplied ESF numbers are restricted to digits/hyphens, blocking the
+    inline-handler XSS vector; a well-formed number is still accepted."""
+    uuid = new_draft(admin)
+    bad = save(admin, uuid, valid_pairs() + [("esf_number", "');alert(1);('")])
+    assert bad.status_code == 400
+    ok = save(admin, uuid, valid_pairs() + [("esf_number", "0002026-004-00000009")])
+    assert ok.status_code in (200, 303)
+
+
+def test_confirm_handlers_have_no_inline_number(admin):
+    """Delete/cancel confirmations read the number from a data-* attribute rather
+    than interpolating it into an inline onsubmit handler."""
+    uuid = new_draft(admin)
+    save(admin, uuid, valid_pairs())
+    dash = admin.get("/dashboard").text
+    assert 'data-confirm="delete"' in dash
+    assert "onsubmit=\"return confirm('Удалить документ" not in dash
+    admin.post(f"/esf/{uuid}/publish", content=urlencode(valid_pairs()), headers=FORM)
+    view = admin.get(f"/esf/{uuid}").text
+    assert 'data-confirm="cancel"' in view
+    assert "onsubmit=\"return confirm('Аннулировать" not in view
+
+
+def test_directory_dropdowns_use_textcontent(admin):
+    """The counterparty/goods lookup dropdowns build rows with textContent, not
+    innerHTML fed with directory data (stored-XSS fix)."""
+    uuid = new_draft(admin)
+    html = admin.get(f"/esf/{uuid}").text
+    assert "cpName.textContent" in html and "gName.textContent" in html
+    assert '<span class="cp-inn">\' + (cp.inn' not in html
+
+
+# ---- H4/M: infrastructure & config hardening -------------------------
+def test_security_headers_present(admin):
+    """Every response carries CSP + anti-clickjacking / MIME-sniffing headers."""
+    r = admin.get("/dashboard")
+    csp = r.headers.get("Content-Security-Policy", "")
+    assert "default-src 'self'" in csp and "frame-ancestors 'none'" in csp
+    assert "object-src 'none'" in csp
+    assert r.headers.get("X-Content-Type-Options") == "nosniff"
+    assert r.headers.get("X-Frame-Options") == "DENY"
+    assert r.headers.get("Referrer-Policy") == "strict-origin-when-cross-origin"
+
+
+def test_environment_is_production_by_default():
+    """Safe-by-default: only the explicit 'development' disables prod hardening."""
+    from app.core.config import Settings
+    s = Settings()
+    for prod in ("production", "prod", "", "staging", "Production"):
+        s.ENVIRONMENT = prod
+        assert s.is_production, prod
+    for dev in ("development", "Development", " development "):
+        s.ENVIRONMENT = dev
+        assert not s.is_production, dev
+
+
+def test_secret_key_fail_closed_in_production():
+    """Placeholder / empty / short secrets are rejected when ENVIRONMENT=production."""
+    from app.core.config import DEFAULT_SECRET, Settings
+    s = Settings()
+    s.ENVIRONMENT = "production"
+    for bad in ("", DEFAULT_SECRET, "CHANGE_ME_64_hex_chars",
+                "change-me-to-a-long-random-string", "tooshort"):
+        s.SECRET_KEY = bad
+        with pytest.raises(RuntimeError):
+            s.validate_for_runtime()
+    s.SECRET_KEY = "a" * 40                 # long, non-placeholder
+    s.validate_for_runtime()                # must not raise
+    s.ENVIRONMENT = "development"           # dev never validates the secret
+    s.SECRET_KEY = ""
+    s.validate_for_runtime()
+
+
+def test_client_ip_trusts_x_real_ip_only_behind_proxy(monkeypatch):
+    """X-Real-IP is honoured only when TRUST_PROXY is set; otherwise the socket peer."""
+    from app.core import observability
+    from app.core.config import settings
+
+    def req(xri, peer):
+        return type("R", (), {
+            "headers": {"x-real-ip": xri} if xri else {},
+            "client": type("C", (), {"host": peer})(),
+        })()
+
+    monkeypatch.setattr(settings, "TRUST_PROXY", False)
+    assert observability.client_ip(req("1.2.3.4", "10.0.0.1")) == "10.0.0.1"
+    monkeypatch.setattr(settings, "TRUST_PROXY", True)
+    assert observability.client_ip(req("1.2.3.4", "10.0.0.1")) == "1.2.3.4"
+    assert observability.client_ip(req(None, "10.0.0.1")) == "10.0.0.1"
+
+
+def test_delete_draft_persists_and_cancelled_blocked(admin):
+    """Deleting an editable draft persists (single-delete now commits); a CANCELLED
+    document (with its immutable snapshot) is rejected with 409, not a 500."""
+    uuid = new_draft(admin)
+    r = admin.post(f"/esf/{uuid}/delete")
+    assert r.status_code in (200, 303)
+    assert admin.get(f"/esf/{uuid}").status_code == 404          # actually gone
+    # publish -> cancel -> a CANCELLED doc keeps its snapshot and cannot be deleted
+    uuid2 = new_draft(admin)
+    save(admin, uuid2, valid_pairs())
+    admin.post(f"/esf/{uuid2}/publish", content=urlencode(valid_pairs()), headers=FORM)
+    admin.post(f"/esf/{uuid2}/cancel")
+    resp = admin.post(f"/esf/{uuid2}/delete")
+    assert resp.status_code == 409
+    assert admin.get(f"/esf/{uuid2}").status_code == 200         # still present
+
+
+# ---- H2: concurrency-safe publish + atomic ESF-number allocation -----
+def test_esf_number_allocation_is_unique_and_monotonic(admin, db_session):
+    """Numbers come from a DB sequence: each call is unique and increasing (no
+    count()+1 TOCTOU that could hand two publishes the same number)."""
+    import re as _re
+
+    from app.services.esf_service import ESFService
+    svc = ESFService(db_session)
+    nums = [svc.next_esf_number() for _ in range(5)]
+    assert len(set(nums)) == 5
+    for n in nums:
+        assert _re.match(r"^000\d{4}-004-\d{8}$", n), n
+    suffixes = [int(n.split("-")[2]) for n in nums]
+    assert suffixes == sorted(suffixes) and len(set(suffixes)) == 5
+
+
+def test_second_publish_creates_no_second_snapshot(admin, db_session):
+    """Re-publishing an already-PUBLISHED doc is rejected under the row lock and
+    never adds a duplicate snapshot (the double-publish race invariant)."""
+    import uuid as U
+
+    from app.models import ESFDocument
+    uuid = new_draft(admin)
+    save(admin, uuid, valid_pairs())
+    r1 = admin.post(f"/esf/{uuid}/publish", content=urlencode(valid_pairs()), headers=FORM)
+    assert r1.status_code in (200, 303)
+    doc = db_session.query(ESFDocument).filter(ESFDocument.uuid == U.UUID(uuid)).one()
+    assert len(doc.snapshots) == 1
+    number_after_first = doc.esf_number
+    # second publish: save() re-checks status under the lock -> 409, no mutation
+    r2 = admin.post(f"/esf/{uuid}/publish", content=urlencode(valid_pairs()), headers=FORM)
+    assert r2.status_code == 409
+    db_session.expire_all()
+    doc2 = db_session.query(ESFDocument).filter(ESFDocument.uuid == U.UUID(uuid)).one()
+    assert len(doc2.snapshots) == 1               # still exactly one
+    assert doc2.esf_number == number_after_first  # number unchanged (not nulled/reassigned)
+
+
+# ---- H3: DB-level immutability (snapshots + audit log) ----------------
+def test_immutability_triggers_installed(db_session):
+    from sqlalchemy import text
+    rows = db_session.execute(text(
+        "SELECT tgrelid::regclass::text AS tbl FROM pg_trigger "
+        "WHERE tgname IN ('esf_snapshots_no_update_delete', 'audit_logs_no_tamper')"
+    )).all()
+    tables = {r[0] for r in rows}
+    assert "esf_snapshots" in tables and "audit_logs" in tables
+
+
+def test_snapshot_immutable_at_db_level():
+    """Raw UPDATE/DELETE (which bypass the ORM events) are blocked by the trigger."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session as _S
+
+    from app.db.session import engine
+    from app.models import DocumentStatus, ESFDocument, ESFSnapshot, User
+    conn = engine.connect()
+    sess = _S(bind=conn)
+    try:
+        u = User(username="h3_snap_user", hashed_password="x", is_admin=False, is_active=True)
+        sess.add(u); sess.flush()
+        d = ESFDocument(owner_id=u.id, status=DocumentStatus.PUBLISHED)
+        sess.add(d); sess.flush()
+        s = ESFSnapshot(document_id=d.id, payload_json={"k": "v"}, sha256="abc")
+        sess.add(s); sess.flush()
+        sid = s.id
+        sess.expunge_all()   # detach so raw SQL below isn't intercepted by the ORM
+        for stmt in (text("UPDATE esf_snapshots SET sha256 = 'z' WHERE id = :i"),
+                     text("DELETE FROM esf_snapshots WHERE id = :i")):
+            sp = sess.begin_nested()
+            with pytest.raises(Exception):
+                sess.execute(stmt, {"i": sid})
+            sp.rollback()
+    finally:
+        sess.rollback(); sess.close(); conn.close()
+
+
+def test_audit_log_append_only_at_db_level():
+    """Audit content is immutable and rows cannot be deleted, but the FK-cascade
+    SET NULL (document_id/user_id) that a legitimate delete triggers is allowed."""
+    from sqlalchemy import text
+    from sqlalchemy.orm import Session as _S
+
+    from app.db.session import engine
+    from app.models import AuditLog
+    conn = engine.connect()
+    sess = _S(bind=conn)
+    try:
+        a = AuditLog(action="LOGIN", ip_address="1.1.1.1")
+        sess.add(a); sess.flush()
+        aid = a.id
+        sess.expunge_all()
+        sp = sess.begin_nested()
+        with pytest.raises(Exception):                          # content change blocked
+            sess.execute(text("UPDATE audit_logs SET action = 'HACKED' WHERE id = :i"), {"i": aid})
+        sp.rollback()
+        sp = sess.begin_nested()
+        with pytest.raises(Exception):                          # delete blocked
+            sess.execute(text("DELETE FROM audit_logs WHERE id = :i"), {"i": aid})
+        sp.rollback()
+        sp = sess.begin_nested()
+        sess.execute(text("UPDATE audit_logs SET document_id = NULL WHERE id = :i"), {"i": aid})
+        sp.rollback()                                           # FK-cascade allowed (no raise)
+    finally:
+        sess.rollback(); sess.close(); conn.close()
+
+
+def test_serialize_published_detects_tampered_snapshot(db_session):
+    """serialize_published re-verifies the sha256 and fails closed on a mismatch."""
+    from fastapi import HTTPException
+
+    from app.models import DocumentStatus, ESFDocument, User
+    from app.models.esf_snapshot import ESFSnapshot
+    from app.services import snapshot_service
+    from app.services.esf_service import ESFService
+    u = User(username="h3_tamper_user", hashed_password="x", is_admin=False, is_active=True)
+    db_session.add(u); db_session.flush()
+    d = ESFDocument(owner_id=u.id, status=DocumentStatus.PUBLISHED)
+    db_session.add(d); db_session.flush()
+    good = ESFSnapshot(document_id=d.id, payload_json={"a": 1},
+                       sha256=snapshot_service.content_hash({"a": 1}))
+    db_session.add(good); db_session.flush()
+    svc = ESFService(db_session)
+    assert svc.serialize_published(d) == {"a": 1}          # valid snapshot returns payload
+    bad = ESFSnapshot(document_id=d.id, payload_json={"a": 2}, sha256="deadbeef")
+    db_session.add(bad); db_session.flush()                # newer -> becomes latest_snapshot
+    with pytest.raises(HTTPException):
+        svc.serialize_published(d)
+
+
+# ---- M10: validation rules (buyer INN, foreign-currency rate, VAT base) ----
+def test_validation_new_rules(admin, db_session):
+    import uuid as U
+
+    from app.models import ESFDocument
+    from app.services.validation_service import validate_document
+
+    def errs_for(pairs):
+        u = new_draft(admin)
+        save(admin, u, pairs)
+        doc = db_session.query(ESFDocument).filter(ESFDocument.uuid == U.UUID(u)).one()
+        return validate_document(doc)
+
+    def over(pairs, **repl):
+        return [(k, repl.get(k, v)) for (k, v) in pairs]
+
+    # a fully-consistent document passes (guards the happy path / no false positives)
+    assert errs_for(valid_pairs()) == []
+    # buyer INN with letters -> rejected (symmetric with the supplier check)
+    assert any("ИНН покупателя должен содержать только цифры" in e
+               for e in errs_for(over(valid_pairs(), buyer_inn="AB12")))
+    # foreign currency (643) without an exchange rate -> rejected
+    assert any("иностранной валюты необходимо указать курс" in e
+               for e in errs_for(over(valid_pairs(), currency_rate="")))
+    # VAT that does not match rate x base (12% declared, 0 entered) -> rejected
+    assert any("не соответствует ставке" in e
+               for e in errs_for(over(valid_pairs(), item_vat_rate="12", item_vat_amount="0")))
+    # negative VAT -> rejected
+    assert any("сумма НДС не может быть отрицательной" in e
+               for e in errs_for(over(valid_pairs(), item_vat_rate="0", item_vat_amount="-5")))

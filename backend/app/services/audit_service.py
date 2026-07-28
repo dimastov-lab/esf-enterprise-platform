@@ -8,6 +8,7 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
+from app.core.observability import client_ip
 from app.models import AuditLog
 
 # Action vocabulary
@@ -27,7 +28,7 @@ def record(db: Session, action: str, *, user=None, document=None, request=None,
     ip = None
     ua = None
     if request is not None:
-        ip = request.client.host if request.client else None
+        ip = client_ip(request)
         ua = request.headers.get("user-agent")
     entry = AuditLog(
         user_id=getattr(user, "id", None),

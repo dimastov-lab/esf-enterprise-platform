@@ -21,9 +21,9 @@ def counterparties_search(q: str = "", db: Session = Depends(get_db),
     """Search the counterparty directory by INN or name (max 10).
 
     Auth required (get_current_user). Returns JSON list ordered: exact-INN match,
-    most recently used, then name.
+    most recently used, then name. Scoped to the caller's own directory.
     """
-    return JSONResponse({"results": CounterpartyService(db).search(q)})
+    return JSONResponse({"results": CounterpartyService(db).search(user.id, q)})
 
 
 @router.get("/api/counterparties/recent")
@@ -31,9 +31,9 @@ def counterparties_recent(db: Session = Depends(get_db),
                           user: User = Depends(get_current_user)):
     """Most-recently-used counterparties for the editor's right panel.
 
-    Auth required; there is no public access to the directory.
+    Auth required; there is no public access to the directory. Scoped to the caller.
     """
-    return JSONResponse({"results": CounterpartyService(db).recent()})
+    return JSONResponse({"results": CounterpartyService(db).recent(user.id)})
 
 
 @router.get("/api/goods/search")
@@ -41,16 +41,16 @@ def goods_search(q: str = "", db: Session = Depends(get_db),
                  user: User = Depends(get_current_user)):
     """Search the goods catalog by name or ТН ВЭД code (max 10).
 
-    Auth required. Ordered: favorites, most-used, recent, name.
+    Auth required. Ordered: favorites, most-used, recent, name. Scoped to the caller.
     """
-    return JSONResponse({"results": GoodService(db).search(q)})
+    return JSONResponse({"results": GoodService(db).search(user.id, q)})
 
 
 @router.get("/api/goods/recent")
 def goods_recent(db: Session = Depends(get_db),
                  user: User = Depends(get_current_user)):
-    """Most-relevant goods (favorites + recently used) for the editor panel."""
-    return JSONResponse({"results": GoodService(db).recent()})
+    """Most-relevant goods (favorites + recently used) for the editor panel. Scoped to the caller."""
+    return JSONResponse({"results": GoodService(db).recent(user.id)})
 
 
 @router.get("/api/esf")

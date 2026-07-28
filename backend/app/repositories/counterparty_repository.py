@@ -14,13 +14,14 @@ class CounterpartyRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def search(self, q: str, limit: int = 10) -> List[Counterparty]:
+    def search(self, owner_id: int, q: str, limit: int = 10) -> List[Counterparty]:
         q = (q or "").strip()
         if not q:
             return []
         exact_first = case((Counterparty.inn == q, 0), else_=1)
         return (
             self.db.query(Counterparty)
+            .filter(Counterparty.owner_id == owner_id)
             .filter(or_(Counterparty.inn.ilike(f"{q}%"), Counterparty.name.ilike(f"%{q}%")))
             .order_by(
                 exact_first,
@@ -33,10 +34,11 @@ class CounterpartyRepository:
             .all()
         )
 
-    def recent(self, limit: int = 8) -> List[Counterparty]:
+    def recent(self, owner_id: int, limit: int = 8) -> List[Counterparty]:
         """Most-recently-used counterparties (for the editor's right panel)."""
         return (
             self.db.query(Counterparty)
+            .filter(Counterparty.owner_id == owner_id)
             .filter(Counterparty.last_used_at.isnot(None))
             .order_by(
                 Counterparty.is_favorite.desc(),
@@ -46,17 +48,21 @@ class CounterpartyRepository:
             .all()
         )
 
-    def get_by_inn(self, inn: str) -> Optional[Counterparty]:
-        return self.db.query(Counterparty).filter(Counterparty.inn == inn).one_or_none()
+    def get_by_owner_inn(self, owner_id: int, inn: str) -> Optional[Counterparty]:
+        return (
+            self.db.query(Counterparty)
+            .filter(Counterparty.owner_id == owner_id, Counterparty.inn == inn)
+            .one_or_none()
+        )
 
-    def upsert(self, data: dict) -> Optional[Counterparty]:
-        """Insert/update a counterparty keyed by INN. No-op without an INN."""
+    def upsert(self, owner_id: int, data: dict) -> Optional[Counterparty]:
+        """Insert/update a counterparty for `owner_id`, keyed by INN. No-op without an INN."""
         inn = (data.get("inn") or "").strip()
         if not inn:
             return None
-        cp = self.get_by_inn(inn)
+        cp = self.get_by_owner_inn(owner_id, inn)
         if cp is None:
-            cp = Counterparty(inn=inn)
+            cp = Counterparty(owner_id=owner_id, inn=inn)
             self.db.add(cp)
         for field in _FIELDS:
             value = data.get(field)

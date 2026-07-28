@@ -25,20 +25,20 @@ class GoodService:
     def __init__(self, db: Session):
         self.repo = GoodRepository(db)
 
-    def search(self, q: str) -> List[dict]:
-        return [_to_dict(g) for g in self.repo.search(q)]
+    def search(self, owner_id: int, q: str) -> List[dict]:
+        return [_to_dict(g) for g in self.repo.search(owner_id, q)]
 
-    def recent(self, limit: int = 8) -> List[dict]:
-        return [_to_dict(g) for g in self.repo.recent(limit)]
+    def recent(self, owner_id: int, limit: int = 8) -> List[dict]:
+        return [_to_dict(g) for g in self.repo.recent(owner_id, limit)]
 
     def set_favorite(self, good_id: int, value: bool) -> bool:
         return self.repo.set_favorite(good_id, value) is not None
 
-    def upsert_item(self, item: ESFItem) -> None:
-        """Remember a saved line item in the catalog (keyed by product name)."""
+    def upsert_item(self, item: ESFItem, owner_id: int) -> None:
+        """Remember a saved line item in the owner's catalog (keyed by product name)."""
         if not item or not item.product_name:
             return
-        self.repo.upsert({
+        self.repo.upsert(owner_id, {
             "name": item.product_name,
             "code": item.tnved_code,
             "unit": item.unit,

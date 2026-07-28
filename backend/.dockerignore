@@ -3,9 +3,22 @@ __pycache__/
 *.pyc
 *.pyo
 .pytest_cache/
+.ruff_cache/
+.coverage
 legacy/
 tests/
 _shots/
 *.sqlite
 *.sqlite3
 .DS_Store
+
+# Secrets & local env — must never be baked into an image layer
+.env
+.env.*
+
+# VCS metadata
+.git/
+.gitignore
+
+# Runtime output (generated at run time, not a build input): QR PNGs, logs
+storage/

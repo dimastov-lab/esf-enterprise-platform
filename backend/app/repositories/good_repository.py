@@ -14,12 +14,13 @@ class GoodRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def search(self, q: str, limit: int = 10) -> List[Good]:
+    def search(self, owner_id: int, q: str, limit: int = 10) -> List[Good]:
         q = (q or "").strip()
         if not q:
             return []
         return (
             self.db.query(Good)
+            .filter(Good.owner_id == owner_id)
             .filter(or_(Good.name.ilike(f"%{q}%"), Good.code.ilike(f"{q}%")))
             .order_by(
                 Good.is_favorite.desc(),
@@ -31,9 +32,10 @@ class GoodRepository:
             .all()
         )
 
-    def recent(self, limit: int = 8) -> List[Good]:
+    def recent(self, owner_id: int, limit: int = 8) -> List[Good]:
         return (
             self.db.query(Good)
+            .filter(Good.owner_id == owner_id)
             .order_by(
                 Good.is_favorite.desc(),
                 Good.last_used_at.desc().nullslast(),
@@ -43,25 +45,25 @@ class GoodRepository:
             .all()
         )
 
-    def get_by_name(self, name: str) -> Optional[Good]:
+    def get_by_owner_name(self, owner_id: int, name: str) -> Optional[Good]:
         name = (name or "").strip()
         if not name:
             return None
         return (
             self.db.query(Good)
-            .filter(func.lower(Good.name) == name.lower())
+            .filter(Good.owner_id == owner_id, func.lower(Good.name) == name.lower())
             .first()
         )
 
-    def upsert(self, data: dict) -> Optional[Good]:
-        """Insert/update a catalog good keyed by name (case-insensitive).
+    def upsert(self, owner_id: int, data: dict) -> Optional[Good]:
+        """Insert/update a catalog good for `owner_id`, keyed by name (case-insensitive).
         Increments the usage counter on every save."""
         name = (data.get("name") or "").strip()
         if not name:
             return None
-        good = self.get_by_name(name)
+        good = self.get_by_owner_name(owner_id, name)
         if good is None:
-            good = Good(name=name)
+            good = Good(owner_id=owner_id, name=name)
             self.db.add(good)
         for f in _FIELDS:
             value = data.get(f)

@@ -6,7 +6,15 @@ search-as-you-type lookup. Not part of the STI-007 document or any snapshot.
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, Integer, String, func
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -14,9 +22,19 @@ from app.db.base import Base
 
 class Counterparty(Base):
     __tablename__ = "counterparties"
+    # The directory is per-owner: INN is unique within an owner, not globally,
+    # so two users can each keep their own entry for the same counterparty.
+    __table_args__ = (
+        UniqueConstraint("owner_id", "inn", name="uq_counterparties_owner_inn"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    inn: Mapped[Optional[str]] = mapped_column(String(20), unique=True, index=True)
+    # Owner scoping (H1): every directory entry belongs to the user who saved it.
+    # Nullable only to accommodate pre-migration rows; new rows always set it.
+    owner_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    inn: Mapped[Optional[str]] = mapped_column(String(20), index=True)
     name: Mapped[Optional[str]] = mapped_column(String(500), index=True)
     branch: Mapped[Optional[str]] = mapped_column(String(500))
     address: Mapped[Optional[str]] = mapped_column(String(500))

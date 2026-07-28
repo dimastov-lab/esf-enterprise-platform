@@ -3,6 +3,8 @@ recompute totals, and own the draft create/edit/delete operations.
 
 Controller (router) -> this service -> repository -> DB.
 """
+import logging
+import re
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from typing import List, Optional
@@ -27,7 +29,14 @@ from app.repositories.esf_document_repository import ESFDocumentRepository
 from app.services import snapshot_service
 from app.services.validation_service import validate_document
 
+_log = logging.getLogger("esf.error")
+
 TWO = Decimal("0.01")
+
+# ESF numbers are digits + hyphens only (official format 000{YYYY}-004-{8 digits}).
+# Enforced on save so a user-supplied number can never carry markup into a
+# template (defence-in-depth against the inline-handler XSS class).
+_ESF_NUMBER_RE = re.compile(r"^[0-9-]{1,40}$")
 
 EDITABLE_STATUSES = {DocumentStatus.DRAFT, DocumentStatus.VALIDATED}
 
@@ -264,6 +273,7 @@ class ESFService:
         """Annul a PUBLISHED ESF. The immutable snapshot is preserved (history);
         only the document's lifecycle status changes to CANCELLED."""
         require_owner_or_admin(doc, user)
+        self.repo.lock(doc)              # serialize + re-read status under a row lock
         if doc.status != DocumentStatus.PUBLISHED:
             raise HTTPException(status_code=409,
                                 detail="Аннулировать можно только опубликованный документ.")
@@ -344,20 +354,35 @@ class ESFService:
     # ---- delete --------------------------------------------------------
     def delete(self, doc: ESFDocument, user: User) -> None:
         require_owner_or_admin(doc, user)
-        if doc.status == DocumentStatus.PUBLISHED:
+        self.repo.lock(doc)              # serialize + re-read status under a row lock
+        # Only editable drafts can be deleted. A PUBLISHED or CANCELLED document
+        # has an immutable snapshot (FK RESTRICT); deleting it previously raised
+        # an unhandled 500 — reject it cleanly with a 409 instead.
+        if not self.is_editable(doc):
             raise HTTPException(
                 status_code=409,
-                detail="Опубликованный документ нельзя удалить.",
+                detail="Документ с этим статусом нельзя удалить: "
+                       "у опубликованного/аннулированного есть неизменяемый снапшот.",
             )
         self.repo.delete(doc)
 
     # ---- save ----------------------------------------------------------
     def save(self, doc: ESFDocument, user: User, form) -> ESFDocument:
         require_owner_or_admin(doc, user)
+        self.repo.lock(doc)              # serialize + re-read status under a row lock
         self._require_editable(doc)
 
         def g(key):
             return (form.get(key) or "").strip()
+
+        # Reject markup early (defence-in-depth for the inline-handler XSS class):
+        # ESF numbers are digits + hyphens only. Checked before any mutation so a
+        # bad value never leaves partial state behind.
+        if g("esf_number") and not _ESF_NUMBER_RE.match(g("esf_number")):
+            raise HTTPException(
+                status_code=400,
+                detail="Недопустимый номер ЭСФ (допустимы только цифры и дефис).",
+            )
 
         parties = {p.party_type: p for p in doc.parties}
         sup = parties.get(PartyType.SUPPLIER) or ESFParty(party_type=PartyType.SUPPLIER)
@@ -401,17 +426,17 @@ class ESFService:
         self._rebuild_items(doc, form)
         self._recompute_totals(doc)
 
-        # Upsert supplier/buyer into the reusable counterparty directory (by INN).
+        # Upsert supplier/buyer into the OWNER's counterparty directory (by INN).
         from app.services.counterparty_service import CounterpartyService
         cp_service = CounterpartyService(self.db)
-        cp_service.upsert_party(sup)
-        cp_service.upsert_party(buy)
+        cp_service.upsert_party(sup, doc.owner_id)
+        cp_service.upsert_party(buy, doc.owner_id)
 
-        # Remember line items in the goods catalog (by name) — SMART GOODS.
+        # Remember line items in the owner's goods catalog (by name) — SMART GOODS.
         from app.services.good_service import GoodService
         good_service = GoodService(self.db)
         for it in doc.items:
-            good_service.upsert_item(it)
+            good_service.upsert_item(it, doc.owner_id)
 
         # editing a VALIDATED draft invalidates the prior validation
         if doc.status == DocumentStatus.VALIDATED:
@@ -419,6 +444,7 @@ class ESFService:
 
         # Header set last (after the item-rebuild flush) so a duplicate esf_number
         # surfaces only at commit and is turned into a clean 409, not a mid-flush 500.
+        # (Format was validated at the top of save(), before any mutation.)
         doc.esf_number = g("esf_number") or None
         doc.issue_date = _parse_date(g("issue_date"))
 
@@ -437,6 +463,7 @@ class ESFService:
     def validate(self, doc: ESFDocument, user: User) -> List[str]:
         """Run the Validation Engine. On success: status DRAFT -> VALIDATED."""
         require_owner_or_admin(doc, user)
+        self.repo.lock(doc)              # serialize + re-read status under a row lock
         self._require_editable(doc)
         errors = validate_document(doc)
         doc.status = DocumentStatus.DRAFT if errors else DocumentStatus.VALIDATED
@@ -445,14 +472,17 @@ class ESFService:
         return errors
 
     def next_esf_number(self) -> str:
-        # Official salyk.kg format: 000{YYYY}-004-{8 digits}, e.g. 0002026-004-00000010
+        # Official salyk.kg format: 000{YYYY}-004-{8 digits}, e.g. 0002026-004-00000010.
+        # The counter is allocated from a DB sequence (atomic + collision-free under
+        # concurrency, unlike the old count()+1). The number_exists guard only covers
+        # the rare case of a hand-entered number a later sequence value could reach.
         year = datetime.now(timezone.utc).year
-        n = self.repo.count_numbered() + 1
-        candidate = f"000{year}-004-{n:08d}"
-        while self.repo.number_exists(candidate):
-            n += 1
+        for _ in range(1000):
+            n = self.repo.next_number_seq()
             candidate = f"000{year}-004-{n:08d}"
-        return candidate
+            if not self.repo.number_exists(candidate):
+                return candidate
+        raise HTTPException(status_code=500, detail="Не удалось выделить номер ЭСФ.")
 
     def publish(self, doc: ESFDocument, user: User) -> List[str]:
         """DRAFT/VALIDATED -> PUBLISHED via validate -> snapshot.
@@ -460,6 +490,7 @@ class ESFService:
         Returns validation errors (non-empty = not published).
         """
         require_owner_or_admin(doc, user)
+        self.repo.lock(doc)              # serialize: re-check status under a row lock
         self._require_editable(doc)
         errors = validate_document(doc)
         if errors:
@@ -486,6 +517,14 @@ class ESFService:
             payload = self.serialize(doc)                   # 4. immutable snapshot...
             self.db.add(snapshot_service.make_snapshot(doc, payload))
             self.repo.commit()                              # 7. commit once
+        except IntegrityError:
+            # e.g. an esf_number collision that slipped past the guard — surface a
+            # clean 409 (retryable) instead of an opaque 500.
+            self.db.rollback()
+            raise HTTPException(
+                status_code=409,
+                detail="Публикация не удалась из-за конфликта номера ЭСФ. Повторите попытку.",
+            )
         except Exception:
             self.db.rollback()                              # no partial publication
             raise
@@ -493,9 +532,27 @@ class ESFService:
         return []
 
     def serialize_published(self, doc: ESFDocument) -> dict:
-        """Render data for a published doc from its immutable snapshot."""
+        """Render data for a published doc from its immutable snapshot.
+
+        The stored sha256 is re-verified against the payload on every read, so any
+        DB-level tampering with `payload_json` (which the append-only triggers make
+        hard, but this is defence-in-depth) is caught and fails closed instead of
+        serving a corrupted legal record.
+        """
         snap = self.repo.latest_snapshot(doc)
-        return snap.payload_json if snap else self.serialize(doc)
+        if snap is None:
+            return self.serialize(doc)
+        if snapshot_service.content_hash(snap.payload_json) != snap.sha256:
+            _log.error(
+                "snapshot integrity check failed",
+                extra={"document_uuid": str(doc.uuid), "snapshot_id": snap.id},
+            )
+            raise HTTPException(
+                status_code=500,
+                detail="Снимок документа повреждён (нарушена целостность). "
+                       "Обратитесь к администратору.",
+            )
+        return snap.payload_json
 
     def _rebuild_items(self, doc: ESFDocument, form) -> None:
         codes = form.getlist("item_tnved")

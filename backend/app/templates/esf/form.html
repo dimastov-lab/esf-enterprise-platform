@@ -179,11 +179,30 @@
     <button type="submit" class="vb-btn" title="Создать корректировку к этому ЭСФ">✎ Корректировка</button>
   </form>
   <form method="post" action="/esf/{{ esf.uuid }}/cancel" style="display:inline;margin:0"
-        onsubmit="return confirm('Аннулировать опубликованный ЭСФ № {{ esf.number }}? Действие необратимо.');">
+        data-confirm="cancel" data-confirm-number="{{ esf.number }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <button type="submit" class="vb-btn danger" title="Аннулировать ЭСФ">✗ Аннулировать</button>
   </form>
   {%- endif %}
+  {#- Safe confirm: number is read from a data-* attribute (escaped in an
+      attribute context), never interpolated into an inline JS handler. -#}
+  <script>
+  (function () {
+    if (window.__esfConfirmBound) return;
+    window.__esfConfirmBound = true;
+    document.addEventListener('submit', function (e) {
+      var f = e.target;
+      if (!f || typeof f.getAttribute !== 'function') return;
+      var kind = f.getAttribute('data-confirm');
+      if (!kind) return;
+      var num = f.getAttribute('data-confirm-number') || '';
+      var msg = kind === 'cancel'
+        ? 'Аннулировать опубликованный ЭСФ № ' + num + '? Действие необратимо.'
+        : 'Удалить документ ' + num + ' безвозвратно? Это действие необратимо.';
+      if (!window.confirm(msg)) e.preventDefault();
+    });
+  })();
+  </script>
   <a class="vb-btn primary" href="/esf/new" title="Создать новый ЭСФ">+ Новый ЭСФ</a>
   {%- endif %}
 </div>
@@ -654,9 +673,15 @@
       items.forEach(function(cp, i){
         var row = document.createElement('div');
         row.className = 'cp-item' + (i === active ? ' active' : '');
-        row.innerHTML = '<span class="cp-inn">' + (cp.inn || '') + '</span> ' +
-                        '<span class="cp-name">' + (cp.name || '') + '</span>' +
-                        (cp.address ? '<div class="cp-sub">' + cp.address + '</div>' : '');
+        // Build with textContent (never innerHTML): directory values are cross-user
+        // data and must not be parsed as HTML (stored-XSS fix).
+        var cpInn = document.createElement('span'); cpInn.className = 'cp-inn'; cpInn.textContent = cp.inn || '';
+        var cpName = document.createElement('span'); cpName.className = 'cp-name'; cpName.textContent = cp.name || '';
+        row.appendChild(cpInn); row.appendChild(document.createTextNode(' ')); row.appendChild(cpName);
+        if (cp.address) {
+          var cpAddr = document.createElement('div'); cpAddr.className = 'cp-sub'; cpAddr.textContent = cp.address;
+          row.appendChild(cpAddr);
+        }
         row.addEventListener('mousedown', function(e){ e.preventDefault(); choose(cp); });
         dd.appendChild(row);
       });
@@ -1092,9 +1117,22 @@
       COMMANDS.forEach(function(c){ if (!q || (c.t + ' ' + c.k).toLowerCase().indexOf(q) !== -1) palItems.push({ label: c.t, run: c.run, tag: 'Команда' }); });
       recentDocs().forEach(function(d){ if (d.uuid !== UUID && (!q || d.label.toLowerCase().indexOf(q) !== -1)) palItems.push({ label: d.label, run: function(){ location.href = '/esf/' + d.uuid; }, tag: 'Документ' }); });
       palActive = 0;
-      palList.innerHTML = palItems.length ? palItems.map(function(it, i){
-        return '<div class="cmdk-item' + (i === 0 ? ' active' : '') + '" data-i="' + i + '"><span>' + it.label + '</span><span class="cmdk-tag">' + it.tag + '</span></div>';
-      }).join('') : '<div class="cmdk-empty">Ничего не найдено</div>';
+      // Rebuild with textContent — palette labels include user-entered document
+      // data (supplier name), so they must not be parsed as HTML.
+      palList.textContent = '';
+      if (!palItems.length) {
+        var empty = document.createElement('div'); empty.className = 'cmdk-empty';
+        empty.textContent = 'Ничего не найдено'; palList.appendChild(empty);
+      } else {
+        palItems.forEach(function(it, i){
+          var d = document.createElement('div');
+          d.className = 'cmdk-item' + (i === 0 ? ' active' : '');
+          d.setAttribute('data-i', i);
+          var lab = document.createElement('span'); lab.textContent = it.label;
+          var tag = document.createElement('span'); tag.className = 'cmdk-tag'; tag.textContent = it.tag;
+          d.appendChild(lab); d.appendChild(tag); palList.appendChild(d);
+        });
+      }
     }
     function openPalette(){ pushRecent(); pal.style.display = 'flex'; palInput.value = ''; renderPalette(''); palInput.focus(); }
     function closePalette(){ pal.style.display = 'none'; }
@@ -1174,9 +1212,13 @@
       dd.innerHTML = '';
       items.forEach(function(g, i){
         var row = document.createElement('div'); row.className = 'cp-item' + (i === active ? ' active' : '');
-        row.innerHTML = (g.is_favorite ? '★ ' : '') + '<span class="cp-name">' + (g.name || '') + '</span>' +
-          '<div class="cp-sub">' + [g.code, g.unit, (g.price ? g.price + ' сом' : '')].filter(Boolean).join(' · ') +
-          (g.use_count ? '  ·  использован ' + g.use_count + '×' : '') + '</div>';
+        // textContent only — catalog values are cross-user data (stored-XSS fix).
+        var gName = document.createElement('span'); gName.className = 'cp-name';
+        gName.textContent = (g.is_favorite ? '★ ' : '') + (g.name || '');
+        var gSub = document.createElement('div'); gSub.className = 'cp-sub';
+        var gParts = [g.code, g.unit, (g.price ? g.price + ' сом' : '')].filter(Boolean).join(' · ');
+        gSub.textContent = gParts + (g.use_count ? '  ·  использован ' + g.use_count + '×' : '');
+        row.appendChild(gName); row.appendChild(gSub);
         row.addEventListener('mousedown', function(e){ e.preventDefault(); var tr = current.closest('tr.item'); if (tr) fillRow(tr, g); hide(); });
         dd.appendChild(row);
       });
@@ -1350,9 +1392,14 @@
       var body = document.getElementById('ai-body'); if (!body) return;
       if (!list.length) { body.className = 'ai-body v-ok'; body.textContent = '✓ Замечаний не найдено.'; return; }
       body.className = 'ai-body';
-      body.innerHTML = '<ul class="ai-list">' + list.map(function(it){
-        return '<li class="ai-' + it.lvl + '">' + (it.lvl === 'warn' ? '⚠ ' : 'ℹ ') + it.msg + '</li>';
-      }).join('') + '</ul>';
+      // textContent — messages embed user-entered field values (e.g. item names).
+      var ul = document.createElement('ul'); ul.className = 'ai-list';
+      list.forEach(function(it){
+        var li = document.createElement('li'); li.className = 'ai-' + it.lvl;
+        li.textContent = (it.lvl === 'warn' ? '⚠ ' : 'ℹ ') + it.msg;
+        ul.appendChild(li);
+      });
+      body.textContent = ''; body.appendChild(ul);
     }
     var btn = document.getElementById('ai-check');
     if (btn) btn.addEventListener('click', function(){ render(analyze()); });

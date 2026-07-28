@@ -17,17 +17,17 @@ class CounterpartyService:
     def __init__(self, db: Session):
         self.repo = CounterpartyRepository(db)
 
-    def search(self, q: str) -> List[dict]:
-        return [_to_dict(cp) for cp in self.repo.search(q)]
+    def search(self, owner_id: int, q: str) -> List[dict]:
+        return [_to_dict(cp) for cp in self.repo.search(owner_id, q)]
 
-    def recent(self, limit: int = 8) -> List[dict]:
-        return [_to_dict(cp) for cp in self.repo.recent(limit)]
+    def recent(self, owner_id: int, limit: int = 8) -> List[dict]:
+        return [_to_dict(cp) for cp in self.repo.recent(owner_id, limit)]
 
-    def upsert_party(self, party: ESFParty) -> None:
-        """Upsert a supplier/buyer party into the directory (keyed by INN)."""
+    def upsert_party(self, party: ESFParty, owner_id: int) -> None:
+        """Upsert a supplier/buyer party into the owner's directory (keyed by INN)."""
         if not party or not party.inn:
             return
-        self.repo.upsert({
+        self.repo.upsert(owner_id, {
             "inn": party.inn,
             "name": party.name,
             "branch": party.branch,

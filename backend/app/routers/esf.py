@@ -298,9 +298,11 @@ def esf_delete(doc_uuid: str, request: Request,
     doc = service.get_for_user(doc_uuid, user)
     if doc is None:
         return HTMLResponse("Document not found", status_code=404)
-    audit_service.record(db, audit_service.DELETE, user=user, document=doc,
-                         request=request, meta={"number": doc.esf_number})
-    service.delete(doc, user)
+    meta = {"number": doc.esf_number, "uuid": str(doc.uuid)}
+    service.delete(doc, user)  # raises 409 if the doc is not an editable draft
+    # Record the audit only AFTER a successful delete, so a rejected delete (409 on
+    # a non-editable doc) never leaves a false "DELETE" entry.
+    audit_service.record(db, audit_service.DELETE, user=user, request=request, meta=meta)
     return RedirectResponse(url="/dashboard", status_code=303)
 
 

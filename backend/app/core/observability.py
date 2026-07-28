@@ -16,11 +16,29 @@ from contextvars import ContextVar
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
+from app.core.config import settings
+
 _request_id: ContextVar[str] = ContextVar("request_id", default="-")
 
 
 def request_id() -> str:
     return _request_id.get()
+
+
+def client_ip(request: Request) -> str:
+    """Best-effort real client IP for rate-limiting and audit.
+
+    Behind a trusted reverse proxy (``TRUST_PROXY=true``) prefer ``X-Real-IP``,
+    which nginx sets to the real peer and overwrites for every request — so a
+    client cannot spoof it. Without a trusted proxy, forwarded headers are
+    ignored and the direct socket peer is used (they would be attacker-controlled
+    on a directly-exposed app).
+    """
+    if settings.TRUST_PROXY:
+        xri = request.headers.get("x-real-ip")
+        if xri:
+            return xri.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
 
 
 class _JsonFormatter(logging.Formatter):
