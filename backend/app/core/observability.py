@@ -14,7 +14,20 @@ import uuid
 from contextvars import ContextVar
 
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import HTMLResponse, JSONResponse
+
+_ERROR_HTML = (
+    "<!doctype html><html lang='ru'><head><meta charset='utf-8'>"
+    "<meta name='viewport' content='width=device-width, initial-scale=1'>"
+    "<title>Ошибка сервера</title></head>"
+    "<body style='margin:0;min-height:100vh;display:flex;align-items:center;"
+    "justify-content:center;background:#1f2937;color:#e5e7eb;"
+    "font-family:-apple-system,\"Segoe UI\",Roboto,Arial,sans-serif'>"
+    "<div style='text-align:center;padding:24px'>"
+    "<h1 style='font-size:22px;margin:0 0 8px'>Внутренняя ошибка сервера</h1>"
+    "<p style='color:#9ca3af;font-size:13px;margin:0'>Мы уже уведомлены. "
+    "Код запроса: <code>{rid}</code></p></div></body></html>"
+)
 
 from app.core.config import settings
 
@@ -102,8 +115,12 @@ def install(app) -> None:
             _request_id.reset(token)
 
     async def _on_unhandled(request: Request, exc: Exception):
+        rid = _request_id.get()
+        # Browser page loads get a styled HTML page; API/fetch clients keep JSON.
+        if "text/html" in request.headers.get("accept", ""):
+            return HTMLResponse(_ERROR_HTML.format(rid=rid), status_code=500)
         return JSONResponse(
-            {"detail": "Внутренняя ошибка сервера.", "request_id": _request_id.get()},
+            {"detail": "Внутренняя ошибка сервера.", "request_id": rid},
             status_code=500,
         )
 

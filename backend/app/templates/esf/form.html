@@ -610,10 +610,10 @@
     var status = document.getElementById('autosave-status');
     if (!form) return;
     var uuid = "{{ esf.uuid }}";
-    var dirty = false, saving = false, soon = null;
+    var dirty = false, saving = false, soon = null, dirtyGen = 0, savedGen = 0;
 
     function set(text, cls){ if (status){ status.textContent = text; status.className = 'autosave ' + (cls || ''); } }
-    window.esfDirty = function(){ dirty = true; set('Не сохранено', 'dirty'); schedule(); };
+    window.esfDirty = function(){ dirty = true; dirtyGen++; set('Не сохранено', 'dirty'); schedule(); };
     function schedule(){ if (soon) clearTimeout(soon); soon = setTimeout(save, 1500); }
     // explicit save (Ctrl/Cmd+S, "Сохранить") — persists in the background, no
     // page reload, so scroll position and focus are kept.
@@ -622,16 +622,22 @@
     function save(){
       if (!dirty || saving) return;
       saving = true; set('Сохранение…', 'saving');
+      savedGen = dirtyGen;                    // the generation captured in this FormData
       fetch('/esf/' + uuid + '/autosave', { method: 'POST', body: new FormData(form),
             headers: { 'X-Requested-With': 'fetch' } })
         .then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; })
                                   .catch(function(){ return { ok: false, j: {} }; }); })
         .then(function(res){
-          if (res.ok && res.j.ok){ dirty = false; set('Сохранено ' + res.j.saved_at, 'ok'); }
+          if (res.ok && res.j.ok){
+            // Only mark clean if no keystroke arrived while the request was in flight,
+            // otherwise the last edit would be silently lost under a "Сохранено" label.
+            if (dirtyGen === savedGen) dirty = false;
+            set('Сохранено ' + res.j.saved_at, 'ok');
+          }
           else { set(res.j.error ? 'Не сохранено: только чтение' : 'Ошибка сохранения', 'err'); }
         })
         .catch(function(){ set('Ошибка сети', 'err'); })
-        .then(function(){ saving = false; });
+        .then(function(){ saving = false; if (dirty) schedule(); });   // flush edits that arrived mid-request
     }
 
     form.addEventListener('input', window.esfDirty);
@@ -1165,7 +1171,10 @@
       var raw; try { raw = localStorage.getItem(RKEY); } catch (_) { return; }
       if (!raw) return;
       var data; try { data = JSON.parse(raw); } catch (_) { localStorage.removeItem(RKEY); return; }
-      if (!data || JSON.stringify(data.s) === savedState) { localStorage.removeItem(RKEY); return; }
+      // Discard a stale recovery blob (>24h) so sensitive draft data (INN/amounts)
+      // doesn't linger indefinitely on a shared machine.
+      var ageMs = (data && data.t) ? (Date.now() - new Date(data.t).getTime()) : Infinity;
+      if (!data || ageMs > 86400000 || JSON.stringify(data.s) === savedState) { localStorage.removeItem(RKEY); return; }
       var bar = document.createElement('div'); bar.className = 'recover-bar';
       bar.innerHTML = '<span>Найдены несохранённые изменения от ' + new Date(data.t).toLocaleString('ru-RU') + '.</span>' +
         '<button type="button" class="ebtn save" id="rec-yes">Восстановить</button>' +
