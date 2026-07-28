@@ -33,6 +33,21 @@ _log = logging.getLogger("esf.error")
 
 TWO = Decimal("0.01")
 
+# Reject absurd magnitudes before money arithmetic so a huge input can't overflow
+# the Decimal context (→ InvalidOperation) or the Numeric(20,2) columns (→ DataError)
+# and surface as an opaque 500. 10^16 is far above any real invoice value.
+_MAX_MONEY = Decimal(10) ** 16
+_MAX_RATE = Decimal("9999.99")   # Numeric(6,2) capacity for item vat_rate
+
+
+def _bounded(value: Optional[Decimal], label: str = "") -> Optional[Decimal]:
+    """Raise a clean 400 if a monetary value is outside the sane range."""
+    if value is not None and abs(value) > _MAX_MONEY:
+        detail = f"Недопустимо большое числовое значение{(' (' + label + ')') if label else ''}."
+        raise HTTPException(status_code=400, detail=detail)
+    return value
+
+
 # ESF numbers are digits + hyphens only (official format 000{YYYY}-004-{8 digits}).
 # Enforced on save so a user-supplied number can never carry markup into a
 # template (defence-in-depth against the inline-handler XSS class).
@@ -575,16 +590,28 @@ class ESFService:
         for i in range(n):
             code = at(codes, i).strip()
             name = at(names, i).strip()
-            price = _dec(at(prices, i))
-            qty = _dec(at(qtys, i))
-            vat_amount = _dec(at(vat_amounts, i))
-            nsp = _dec(at(nsps, i))
+            price = _bounded(_dec(at(prices, i)), "цена")
+            qty = _bounded(_dec(at(qtys, i)), "количество")
+            vat_amount = _bounded(_dec(at(vat_amounts, i)), "НДС")
+            nsp = _bounded(_dec(at(nsps, i)), "НсП")
             # skip fully-empty rows
             if not any([code, name, price, qty, vat_amount, nsp]):
                 continue
-            amount = (price * qty).quantize(TWO) if (price is not None and qty is not None) else None
-            total = sum((x for x in (amount, vat_amount, nsp) if x is not None), Decimal("0"))
-            total = total.quantize(TWO) if any(x is not None for x in (amount, vat_amount, nsp)) else None
+            vat_rate = _dec(at(vat_rates, i))
+            if vat_rate is not None and abs(vat_rate) > _MAX_RATE:
+                raise HTTPException(status_code=400, detail=f"Недопустимая ставка НДС в позиции {pos + 1}.")
+            # Guard against a magnitude/precision overflow surfacing as a 500.
+            try:
+                amount = (price * qty).quantize(TWO) if (price is not None and qty is not None) else None
+                total = sum((x for x in (amount, vat_amount, nsp) if x is not None), Decimal("0"))
+                total = total.quantize(TWO) if any(x is not None for x in (amount, vat_amount, nsp)) else None
+            except InvalidOperation:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Недопустимо большое числовое значение в позиции {pos + 1}.",
+                )
+            amount = _bounded(amount)
+            total = _bounded(total)
             pos += 1
             new_items.append(ESFItem(
                 row_number=pos,
@@ -594,7 +621,7 @@ class ESFService:
                 price=price,
                 quantity=qty,
                 amount=amount,
-                vat_rate=_dec(at(vat_rates, i)),
+                vat_rate=vat_rate,
                 vat_amount=vat_amount,
                 nsp=nsp,
                 total=total,
@@ -612,18 +639,21 @@ class ESFService:
         subtotal = sum((it.amount for it in doc.items if it.amount is not None), Decimal("0"))
         vat_total = sum((it.vat_amount for it in doc.items if it.vat_amount is not None), Decimal("0"))
         nsp_total = sum((it.nsp for it in doc.items if it.nsp is not None), Decimal("0"))
-        grand = (subtotal + vat_total + nsp_total).quantize(TWO)
         rate = doc.supply_info.currency_rate if doc.supply_info else None
-        currency_total = (grand / rate).quantize(TWO) if rate else None
+        try:
+            grand = (subtotal + vat_total + nsp_total).quantize(TWO)
+            currency_total = (grand / rate).quantize(TWO) if rate else None
+        except InvalidOperation:
+            raise HTTPException(status_code=400, detail="Итоговая сумма недопустимо велика.")
 
         tot = doc.totals or ESFTotals()
         if doc.totals is None:
             doc.totals = tot
-        tot.subtotal = subtotal.quantize(TWO)
-        tot.vat_total = vat_total.quantize(TWO)
-        tot.nsp_total = nsp_total.quantize(TWO)
-        tot.grand_total = grand
-        tot.currency_total = currency_total
+        tot.subtotal = _bounded(subtotal.quantize(TWO))
+        tot.vat_total = _bounded(vat_total.quantize(TWO))
+        tot.nsp_total = _bounded(nsp_total.quantize(TWO))
+        tot.grand_total = _bounded(grand)
+        tot.currency_total = _bounded(currency_total)
 
     # ---- serialize for the template ------------------------------------
     def serialize(self, doc: ESFDocument) -> dict:

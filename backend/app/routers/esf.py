@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from app.core.security import get_csrf_token, get_current_user, require_csrf
 from app.db.session import get_db
@@ -167,30 +168,47 @@ async def esf_batch_publish(request: Request, db: Session = Depends(get_db),
     return RedirectResponse(url="/dashboard", status_code=303)
 
 
+def _render_pdf_zip(pages) -> bytes:
+    """CPU-bound: render each (filename, html) with WeasyPrint into one ZIP.
+    Runs in a threadpool so it never blocks the event loop."""
+    import io
+    import zipfile
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for filename, html in pages:
+            zf.writestr(filename, render_pdf(html))
+    return buf.getvalue()
+
+
+# Batch PDF is capped low: WeasyPrint is ~2-3s/doc, so keep the whole request
+# comfortably under the reverse-proxy read timeout (nginx 60s).
+_BATCH_PDF_CAP = 20
+
+
 @router.post("/esf/batch/pdf")
 async def esf_batch_pdf(request: Request, db: Session = Depends(get_db),
                         user: User = Depends(get_current_user), _csrf: None = Depends(require_csrf)):
     """Render the selected documents and return them as a single ZIP download."""
-    import io
-    import zipfile
-
-    uuids = (await request.form()).getlist("uuid")[:100]   # cap per request
+    uuids = (await request.form()).getlist("uuid")[:_BATCH_PDF_CAP]
     service = ESFService(db)
     tmpl = templates.env.get_template("esf/form.html")
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for u in uuids:
-            doc = service.get_if_owner(u, user)
-            if doc is None:
-                continue
-            esf = service.serialize_published(doc) if doc.status == DocumentStatus.PUBLISHED \
-                else service.serialize(doc)
-            html = tmpl.render(esf=esf, mode="pdf", dev=False, edit=False, locked=False, errors=[])
-            name = (doc.esf_number or str(doc.uuid)).replace("/", "-")
-            zf.writestr(f"esf-{name}.pdf", render_pdf(html))
+    # Build (filename, html) in the request context (fast DB access); non-editable
+    # docs render from the immutable snapshot, matching the single-PDF route.
+    pages = []
+    for u in uuids:
+        doc = service.get_if_owner(u, user)
+        if doc is None:
+            continue
+        esf = service.serialize(doc) if service.is_editable(doc) else service.serialize_published(doc)
+        html = tmpl.render(esf=esf, mode="pdf", dev=False, edit=False, locked=False, errors=[])
+        name = (doc.esf_number or str(doc.uuid)).replace("/", "-")
+        pages.append((f"esf-{name}.pdf", html))
+    # Offload the blocking WeasyPrint render off the event loop.
+    zip_bytes = await run_in_threadpool(_render_pdf_zip, pages)
     audit_service.record(db, audit_service.DOWNLOAD_PDF, user=user,
-                         request=request, meta={"action": "batch_pdf", "count": len(uuids)})
-    return Response(content=buf.getvalue(), media_type="application/zip",
+                         request=request, meta={"action": "batch_pdf", "count": len(pages)})
+    return Response(content=zip_bytes, media_type="application/zip",
                     headers={"Content-Disposition": 'attachment; filename="esf-batch.zip"'})
 
 
@@ -309,14 +327,15 @@ def esf_delete(doc_uuid: str, request: Request,
 @router.get("/pdf/{doc_uuid}.pdf")
 def esf_pdf(doc_uuid: str, request: Request,
             db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    """PDF from the SAME template via WeasyPrint. Published docs render from the
-    immutable snapshot; drafts render from live data."""
+    """PDF from the SAME template via WeasyPrint. Any non-editable doc (PUBLISHED
+    or CANCELLED) renders from the immutable snapshot; editable drafts from live
+    data — so a cancelled invoice's PDF matches its on-screen snapshot view."""
     service = ESFService(db)
     doc = service.get_for_user(doc_uuid, user)
     if doc is None:
         return HTMLResponse("Document not found", status_code=404)
-    esf = service.serialize_published(doc) if doc.status == DocumentStatus.PUBLISHED \
-        else service.serialize(doc)
+    esf = service.serialize(doc) if service.is_editable(doc) \
+        else service.serialize_published(doc)
     html = templates.env.get_template("esf/form.html").render(
         esf=esf, mode="pdf", dev=False, edit=False, locked=False, errors=[]
     )

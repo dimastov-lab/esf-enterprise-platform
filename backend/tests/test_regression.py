@@ -1067,3 +1067,36 @@ def test_validation_new_rules(admin, db_session):
     # negative VAT -> rejected
     assert any("сумма НДС не может быть отрицательной" in e
                for e in errs_for(over(valid_pairs(), item_vat_rate="0", item_vat_amount="-5")))
+
+
+# ---- Reliability/correctness block 1 ---------------------------------
+def test_readyz_checks_db():
+    """Readiness probe verifies DB connectivity (returns 200 when the DB is up)."""
+    r = TestClient(app).get("/readyz")
+    assert r.status_code == 200 and r.json()["status"] == "ready"
+
+
+def test_money_overflow_rejected_not_500(admin):
+    """An absurd monetary magnitude is a clean 400, never an opaque 500 from a
+    Decimal InvalidOperation / column overflow."""
+    uuid = new_draft(admin)
+    huge = [(k, ("1e50" if k == "item_price" else v)) for (k, v) in valid_pairs()]
+    r = save(admin, uuid, huge)
+    assert r.status_code == 400
+    # a normal value still saves fine
+    assert save(admin, uuid, valid_pairs()).status_code in (200, 303)
+
+
+def test_cancelled_pdf_renders_from_snapshot(admin):
+    """A CANCELLED doc's PDF renders from the immutable snapshot (published status),
+    not live data (which would misrepresent it as an unpublished 'проект')."""
+    import io
+
+    from pypdf import PdfReader
+    uuid = new_draft(admin)
+    save(admin, uuid, valid_pairs())
+    admin.post(f"/esf/{uuid}/publish", content=urlencode(valid_pairs()), headers=FORM)
+    admin.post(f"/esf/{uuid}/cancel")                       # -> CANCELLED, snapshot preserved
+    pdf = admin.get(f"/pdf/{uuid}.pdf").content
+    txt = (PdfReader(io.BytesIO(pdf)).pages[0].extract_text() or "")
+    assert "проект" not in txt.lower()                     # not rendered as a draft

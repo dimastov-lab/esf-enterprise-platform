@@ -42,7 +42,9 @@ services:
     volumes:
       - esf_storage:/app/storage        # persists generated QR PNGs
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/ || exit 1"]
+      # /readyz verifies DB connectivity (curl -f fails on the 503 a DB-down app returns),
+      # so a broken DB marks the container unhealthy instead of passing a shallow check.
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8000/readyz || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5

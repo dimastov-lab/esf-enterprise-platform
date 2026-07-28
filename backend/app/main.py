@@ -7,14 +7,17 @@ Schema is managed by Alembic migrations, not by create_all at startup.
 """
 from pathlib import Path
 
-from fastapi import FastAPI, Request
-from fastapi.responses import RedirectResponse
+from fastapi import Depends, FastAPI, Request
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
+from sqlalchemy.orm import Session
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.core import observability
 from app.core.config import settings
 from app.core.security import NotAuthenticated
+from app.db.session import get_db
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
@@ -82,11 +85,23 @@ async def _redirect_to_login(request: Request, exc: NotAuthenticated):
 
 @app.get("/")
 def health():
+    """Shallow liveness probe — process is up (no dependency checks)."""
     return {
         "status": "running",
         "service": settings.PROJECT_NAME,
         "version": settings.VERSION,
     }
+
+
+@app.get("/readyz")
+def readyz(db: Session = Depends(get_db)):
+    """Readiness probe — verifies DB connectivity so a DB-down container is
+    reported unhealthy (503) instead of passing a shallow liveness check."""
+    try:
+        db.execute(text("SELECT 1"))
+    except Exception:
+        return JSONResponse({"status": "unavailable", "db": "error"}, status_code=503)
+    return {"status": "ready"}
 
 
 # Routers
