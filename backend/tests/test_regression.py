@@ -404,10 +404,16 @@ def test_pdf_draft_and_published(admin):
 def test_qr_png_and_target(admin):
     from app.services.qr_service import qr_target
     uuid = new_draft(admin)
-    r = admin.get(f"/qr/{uuid}.png")
+    save(admin, uuid, valid_pairs())
+    admin.post(f"/esf/{uuid}/publish", content=urlencode(valid_pairs()), headers=FORM)
+    r = admin.get(f"/qr/{uuid}.png")     # QR is PUBLISHED-only, generated in memory
     assert r.status_code == 200 and r.headers["content-type"] == "image/png"
-    # QR encodes the official-format absolute verification URL (matches the reference form)
-    assert qr_target(uuid) == f"https://esf.salyk.kg/esf/check-esf?documentUUID={uuid}"
+    # In dev (PUBLIC_BASE_URL unset) the QR encodes a bare relative path; production
+    # must set its own host and may never point at salyk.kg (see config checks).
+    assert qr_target(uuid) == f"/esf/check-esf?documentUUID={uuid}"
+    # a QR for an unpublished draft is 404 (no existence oracle, no disk write)
+    draft = new_draft(admin)
+    assert admin.get(f"/qr/{draft}.png").status_code == 404
 
 
 # ---- public verification ---------------------------------------------
@@ -866,6 +872,7 @@ def test_secret_key_fail_closed_in_production():
         with pytest.raises(RuntimeError):
             s.validate_for_runtime()
     s.SECRET_KEY = "a" * 40                 # long, non-placeholder
+    s.PUBLIC_BASE_URL = "https://esf.example.com"   # own host required in prod
     s.validate_for_runtime()                # must not raise
     s.ENVIRONMENT = "development"           # dev never validates the secret
     s.SECRET_KEY = ""
@@ -1188,3 +1195,29 @@ def test_same_inn_both_parties_saves_cleanly(admin):
              for (k, v) in valid_pairs()]
     r = save(admin, uuid, pairs)
     assert r.status_code in (200, 303)
+
+
+# ---- #0 authenticity: own-host verification + non-official watermark ----
+def test_public_base_url_fail_closed_in_production():
+    """Production refuses to boot without its OWN PUBLIC_BASE_URL, and never with
+    the official government portal — so QR/verification can't impersonate the state."""
+    from app.core.config import Settings
+    s = Settings()
+    s.ENVIRONMENT = "production"
+    s.SECRET_KEY = "a" * 40
+    for bad in ("", "https://esf.salyk.kg", "http://SALYK.KG/x"):
+        s.PUBLIC_BASE_URL = bad
+        with pytest.raises(RuntimeError):
+            s.validate_for_runtime()
+    s.PUBLIC_BASE_URL = "https://esf.example.com"
+    s.validate_for_runtime()                       # this deployment's own host → ok
+
+
+def test_demo_watermark_rendered(admin, anon):
+    """Every rendered form (default SHOW_DEMO_WATERMARK) carries the non-official marker."""
+    uuid = new_draft(admin)
+    save(admin, uuid, valid_pairs())
+    admin.post(f"/esf/{uuid}/publish", content=urlencode(valid_pairs()), headers=FORM)
+    for html in (admin.get(f"/esf/{uuid}").text,
+                 anon.get(f"/esf/check-esf?documentUUID={uuid}").text):
+        assert 'class="demo-watermark"' in html and "НЕ ОФИЦИАЛЬНЫЙ ДОКУМЕНТ" in html

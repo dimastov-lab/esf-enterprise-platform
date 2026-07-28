@@ -37,6 +37,7 @@ services:
       SECRET_KEY: ${SECRET_KEY}
       ENVIRONMENT: production
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
+      SHOW_DEMO_WATERMARK: ${SHOW_DEMO_WATERMARK:-true}
       WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
       TZ: ${TZ:-UTC}
     volumes:

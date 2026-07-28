@@ -13,6 +13,9 @@
   {%- if mode == 'edit' %}<link rel="stylesheet" href="/static/css/esf_workspace.css">{%- endif %}
 </head>
 <body class="esf-body mode-{{ mode }}">
+{%- if show_demo_watermark %}
+<div class="demo-watermark" aria-hidden="true">ДЕМО · НЕ ОФИЦИАЛЬНЫЙ ДОКУМЕНТ</div>
+{%- endif %}
 
 {#- ---------- macros ---------- -#}
 {# edit-mode inputs carry an optional placeholder (ph) and required marker (req).

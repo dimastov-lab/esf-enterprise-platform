@@ -407,3 +407,26 @@ html { height: 100%; }
   .viewer-page { transform: none !important; width: auto; box-shadow: none; }
   .esf-doc { width: auto; margin: 0; border: 1.5px solid #000; }
 }
+
+/* ---- DEMO watermark (non-official document marker) ------------------------
+   Rendered only when settings.SHOW_DEMO_WATERMARK is on (Jinja global
+   `show_demo_watermark`). position:fixed so WeasyPrint repeats it on every PDF
+   page; pointer-events:none so it never blocks the editor. */
+.demo-watermark {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-28deg);
+  font-family: "DejaVu Sans", Arial, sans-serif;
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: rgba(200, 30, 30, 0.13);
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  z-index: 9999;
+}
+@media print {
+  .demo-watermark { color: rgba(200, 30, 30, 0.16); }
+}
