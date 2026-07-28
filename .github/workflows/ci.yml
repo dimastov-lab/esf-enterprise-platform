@@ -54,7 +54,27 @@ jobs:
         run: alembic upgrade head
 
       - name: Run tests with coverage
-        run: python -m pytest --cov --cov-report=term-missing
+        # --cov-fail-under is a regression floor (raise it as coverage grows); the
+        # broad end-to-end suite is comfortably above it.
+        run: python -m pytest --cov --cov-report=term-missing --cov-fail-under=70
 
       - name: Audit dependencies for known CVEs
         run: pip-audit -r requirements.txt
+
+  # The deploy artifact is the Docker image — build it in CI so a broken
+  # Dockerfile/entrypoint/native-lib set can never pass with a green test job.
+  docker-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the production image
+        run: docker build -t esf-platform:ci backend
+
+      - name: Smoke-test the image (the app imports & boots inside the container)
+        run: |
+          docker run --rm \
+            -e ENVIRONMENT=development \
+            -e SECRET_KEY=ci-smoke-not-for-production \
+            --entrypoint python esf-platform:ci \
+            -c "import app.main; print('app import OK')"

@@ -15,6 +15,8 @@ from app.dev_sample import SAMPLE_ESF
 # app/ directory -> app/templates
 _TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
+# The dev preview is inherently a non-official demo — always mark it.
+templates.env.globals["show_demo_watermark"] = True
 
 router = APIRouter()
 

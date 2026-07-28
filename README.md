@@ -76,7 +76,7 @@ In development, a dev admin is auto-seeded: **admin / admin123**. Optional demo 
 cd backend
 pip install -r requirements-dev.txt
 DATABASE_URL=postgresql+psycopg2://esf:esf@localhost:5432/esf python -m pytest tests/ -q
-# 23 passed — transaction-isolated regression suite
+# 82 passed — transaction-isolated regression suite
 ```
 
 ## Configuration
@@ -89,7 +89,7 @@ For a clean-server production install use the dedicated pack — do **not** use 
 **INSTALL.md** (first install) → **DEPLOY.md** (updates/rollback) → **OPERATIONS.md** (runbook) →
 **BACKUP.md** (backups). Stack: `docker-compose.prod.yml` + `backend/Dockerfile` +
 `infra/nginx/nginx.conf`, configured via `.env.production` (template: `.env.production.example`).
-Validate a running stack with `scripts/prod_smoke_test.sh`. See `PRODUCTION_REPORT.md` and
+Validate a running stack with `scripts/prod_smoke_test.sh`. See `docs/history/PRODUCTION_REPORT.md` and
 `RELEASE_NOTES.md`.
 
 ## Deployment (production, manual / non-Docker)
@@ -107,7 +107,7 @@ Validate a running stack with `scripts/prod_smoke_test.sh`. See `PRODUCTION_REPO
 5. In production the dev admin is NOT seeded and `/dev/esf-preview` is NOT mounted — create the
    first admin out-of-band (e.g. a one-off `AuthService(...).create_user(...)` script).
 
-See `RELEASE_REPORT.md` for the production-hardening backlog (CSRF, rate limiting, audit log).
+See `docs/history/RELEASE_REPORT.md` for the production-hardening backlog (CSRF, rate limiting, audit log).
 
 ## Backup & Restore
 

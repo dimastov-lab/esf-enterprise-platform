@@ -32,5 +32,10 @@ RUN useradd --system --uid 10001 appuser \
 USER appuser
 EXPOSE 8000
 
+# Container-level liveness (compose adds a richer /readyz DB-connectivity probe).
+# curl is installed above; the root health route always returns 200.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+    CMD curl -fsS http://localhost:8000/ || exit 1
+
 # Runs migrations, then starts the production server (no reload, no debug).
 ENTRYPOINT ["./docker-entrypoint.sh"]

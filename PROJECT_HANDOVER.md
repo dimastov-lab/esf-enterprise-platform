@@ -178,7 +178,7 @@ smoke test GREEN, nightly backups running, a restore rehearsed.
 - **Rate limiting is per‑process** (in‑memory). For strict limits use one worker or an external store
   (`TECHNICAL_DEBT.md` TD‑019).
 - **Pagination is OFFSET/LIMIT.** Correct and fast to large sizes; for multi‑million‑row deep paging,
-  keyset pagination would be the next step (`SCALABILITY_REPORT.md`).
+  keyset pagination would be the next step (`docs/history/SCALABILITY_REPORT.md`).
 - **WeasyPrint on macOS dev** needs a dyld path shim (`brew install pango`); n/a on Linux/Docker
   (TD‑009).
 - **Residual advisory risk:** none in shipped runtime deps at handover time; re‑audit periodically as
@@ -223,9 +223,9 @@ and CI and can be deleted once nobody references it for context.
 1. **`README.md`** — what the system is, how to run it locally, using it end‑to‑end.
 2. **`DEPLOY_UBUNTU.md`** — how it runs in production (also the clearest picture of the moving parts).
 3. Then skim `CLAUDE.md` (project charter/rules), `TECHNICAL_DEBT.md`, and
-   `ENTERPRISE_FINAL_CERTIFICATION.md` (category‑by‑category posture).
+   `docs/history/ENTERPRISE_FINAL_CERTIFICATION.md` (category‑by‑category posture).
 
-Reports & history (background, not required to be productive): `CHANGELOG.md`, `SCALABILITY_REPORT.md`,
+Reports & history (background, not required to be productive): `CHANGELOG.md`, `docs/history/SCALABILITY_REPORT.md`,
 `COMPLIANCE_*`, `FINAL_*`, `ENTERPRISE_*_REPORT.md`. These are historical audit trails — the current,
 authoritative operational docs are the three above.
 

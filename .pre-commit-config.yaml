@@ -23,3 +23,20 @@ repos:
       - id: check-added-large-files
         args: [--maxkb=512]
       - id: check-merge-conflict
+      # Refuse to commit private keys (the repo ships next to real TLS keys / secrets).
+      - id: detect-private-key
+
+  # Secret scanning — the working tree sits next to real .env.production and TLS
+  # keys, so block credentials from ever being staged.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+
+  # Security linter for the Python backend (SQLi, weak crypto, shell=True, etc.).
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.0
+    hooks:
+      - id: bandit
+        args: ["-q", "-x", "backend/tests,backend/alembic"]
+        files: ^backend/app/

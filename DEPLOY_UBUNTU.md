@@ -10,7 +10,7 @@ A single, copy‑pasteable walkthrough for a fresh **Ubuntu 22.04 / 24.04 LTS** 
 > first admin → drop in TLS certs. Everything below is the careful version.
 
 Related docs: `INSTALL.md` (concise), `OPERATIONS.md` (runbook), `BACKUP.md`, and
-`ENTERPRISE_FINAL_CERTIFICATION.md` (security/production posture).
+`docs/history/ENTERPRISE_FINAL_CERTIFICATION.md` (security/production posture).
 
 ---
 
@@ -402,4 +402,4 @@ Each request carries an `X-Request-ID` and logs a structured JSON access line
 - [ ] You have tested a **restore** into a scratch database at least once.
 
 Once every box is checked, the platform is live and operable. For the security/production posture
-and known limitations, see `ENTERPRISE_FINAL_CERTIFICATION.md`.
+and known limitations, see `docs/history/ENTERPRISE_FINAL_CERTIFICATION.md`.

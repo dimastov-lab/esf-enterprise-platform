@@ -5,6 +5,9 @@ services:
   db:
     image: postgres:15
     restart: unless-stopped
+    # Bound resources so a runaway query can't starve the host (Compose v2 keys).
+    mem_limit: 512m
+    cpus: 1.0
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -29,6 +32,9 @@ services:
       dockerfile: Dockerfile
     image: esf-platform:1.0-rc1
     restart: unless-stopped
+    # WeasyPrint PDF rendering is CPU/RAM-spiky — cap it so it can't OOM the host.
+    mem_limit: 1g
+    cpus: 1.5
     depends_on:
       db:
         condition: service_healthy
@@ -38,6 +44,9 @@ services:
       ENVIRONMENT: production
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
       SHOW_DEMO_WATERMARK: ${SHOW_DEMO_WATERMARK:-true}
+      # Proxies whose X-Forwarded-* headers are trusted (private ranges = the nginx
+      # container). Never widen to '*' when the app port could be published (I-5).
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-127.0.0.1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
       WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
       TZ: ${TZ:-UTC}
     volumes:
@@ -58,6 +67,8 @@ services:
   nginx:
     image: nginx:1.27-alpine
     restart: unless-stopped
+    mem_limit: 128m
+    cpus: 0.5
     depends_on:
       app:
         condition: service_started
