@@ -1,5 +1,18 @@
 # CHANGELOG.md
 
+## Supply-chain hardening — hash-pinned dependencies (audit I-6) (2026-07-29)
+
+- **`backend/requirements.lock`** — the full transitive closure of `requirements.txt`
+  with SHA256 hashes for every artifact (44 packages), generated with
+  `pip-compile --generate-hashes` under Python 3.11 (matching the Dockerfile runtime).
+- **Dockerfile** now installs with `pip install --require-hashes -r requirements.lock`,
+  so the image build **fails closed** if any downloaded artifact's hash does not match
+  its pin — a substituted/compromised package on PyPI can no longer enter the image.
+- `requirements.txt` stays the source of truth (still what `pip-audit` scans in CI);
+  added a note documenting how to regenerate the lock after changing a pin.
+- Verified: `--require-hashes` install succeeds in a clean `python:3.11` container, the
+  full production image builds, and the app imports inside it with the locked deps.
+
 ## Audit remediation — decompose ESFService, PDF out of the router, drop dead code (2026-07-29)
 
 Closes three architecture findings from `AUDIT_2026-07-28.md` (§7: A-1, A-4, A-5).
