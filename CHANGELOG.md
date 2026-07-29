@@ -1,5 +1,50 @@
 # CHANGELOG.md
 
+## Audit remediation — decompose ESFService, PDF out of the router, drop dead code (2026-07-29)
+
+Closes three architecture findings from `AUDIT_2026-07-28.md` (§7: A-1, A-4, A-5).
+Behaviour-preserving refactor; **82 tests pass**, coverage 91%, `ruff` clean. The
+routers' single entry point (`ESFService`) keeps its full public API, so no router
+or test call site changed.
+
+- **A-1 (god-object):** `ESFService` (755 lines, mixing CRUD + lifecycle + queries +
+  serialization) is decomposed into focused, independently testable services:
+  - `esf_serializer.py` — `ESFSerializer`: pure, DB-free mapping of the ORM graph to
+    the template-ready dict (form / PDF / snapshot) and the compact dashboard row.
+  - `esf_query_service.py` — `ESFQueryService`: the read side (lookup + owner/admin
+    access, pagination/search/sort/filter, dashboard aggregates, snapshot-backed
+    `serialize_published`).
+  - `esf_service.py` — now the lifecycle/command service + coordinator (574 lines);
+    the read/serialize methods are thin pass-throughs to the two services above.
+- **A-4 (logic in controller):** the ESF PDF/ZIP rendering (Jinja template render +
+  WeasyPrint) moved out of `routers/esf.py` into `pdf_service` (`render_esf_pdf`,
+  `render_esf_zip`). The router now only serializes in the request context and
+  offloads the blocking render to the threadpool — a thin controller.
+- **A-5 (dead duplicate):** removed the unused `snapshot_service.latest_snapshot`
+  (a raw-query copy of `ESFDocumentRepository.latest_snapshot`) and its now-unused
+  imports. The bonus dead helper `_num` was dropped in the same pass.
+
+## Audit remediation — layer boundary, error visibility, owner_id NOT NULL (2026-07-29)
+
+Closes three code-quality findings from `AUDIT_2026-07-28.md` (§7: A-2, A-6, A-7).
+No end-user behaviour change; **82 tests pass**, and `alembic upgrade`/`downgrade`
+round-trips clean.
+
+- **A-2 (layer leak):** `ESFService` no longer touches the SQLAlchemy `Session`
+  directly. The 11 direct `self.db.flush/refresh/add/rollback` calls now go through
+  new `ESFDocumentRepository` methods (`flush`, `refresh`, `rollback`, `add_pending`),
+  keeping all DB access inside the repository layer (charter rule). `add_pending`
+  stages the immutable snapshot inside the atomic publish without an early commit.
+- **A-6 (silent excepts):** `batch_publish` now logs a failed document (uuid +
+  traceback via `_log.exception`) and rolls back so the next item starts on a clean
+  session, instead of a bare `failed += 1`. `audit_service.record` logs *why* an audit
+  write failed (append-only trigger, DB down, …) before swallowing it — the write stays
+  best-effort (never breaks the user action), but the compliance blind spot is closed.
+- **A-7 (nullable owner scope):** `counterparties.owner_id` and `goods.owner_id` are now
+  `NOT NULL` (models + reversible migration `b1c2d3e4f5a6`). Legacy pre-scoping rows
+  (owner_id NULL — invisible to every per-owner query, a scope-bypass vector) are purged
+  in the migration; the per-owner directories repopulate on the next save.
+
 ## Project closure — handover + production deployment guide (2026-06-28)
 
 Documentation and repository-hygiene pass for handover to a new engineering team.
