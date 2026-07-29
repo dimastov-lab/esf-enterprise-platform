@@ -1,5 +1,29 @@
 # CHANGELOG.md
 
+## CSP: script nonce instead of 'unsafe-inline' (audit I-4) (2026-07-29)
+
+Removes `'unsafe-inline'` from the Content-Security-Policy `script-src`, closing the
+XSS-mitigation gap the audit flagged. 83 tests pass (a new regression test asserts the
+nonce policy), and every interactive path was verified in the browser with zero CSP
+console violations.
+
+- **Per-request nonce.** `app/main.py` generates a fresh nonce into
+  `request.state.csp_nonce` before each response and emits
+  `script-src 'self' 'nonce-…'`. Every inline `<script>` in login/dashboard/form.html
+  is stamped with `nonce="{{ request.state.csp_nonce … }}"`, so the browser runs our
+  scripts but blocks any injected inline script.
+- **Inline handlers → addEventListener.** A nonce does not cover inline event
+  handlers, so all 8 were converted: the dashboard filter auto-submit (3× `onchange`
+  → `data-autosubmit` + listener), the editor's add-row / delete-row (static **and**
+  the JS-generated row) via delegation, the print button, and the delete-document
+  confirm (`onsubmit` → submit listener).
+- **nginx.** Dropped its static `Content-Security-Policy` header — the application is
+  now the single CSP authority (nginx cannot reproduce the per-request nonce, and a
+  static policy would either weaken it or collide with the nonce). Other security
+  headers stay.
+- **Scope.** `style-src 'unsafe-inline'` is intentionally kept (inline style
+  attributes are pervasive in the STI-007 templates; out of scope for this change).
+
 ## Supply-chain hardening — hash-pinned dependencies (audit I-6) (2026-07-29)
 
 - **`backend/requirements.lock`** — the full transitive closure of `requirements.txt`

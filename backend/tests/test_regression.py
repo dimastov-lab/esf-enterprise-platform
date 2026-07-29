@@ -849,6 +849,32 @@ def test_security_headers_present(admin):
     assert r.headers.get("Referrer-Policy") == "strict-origin-when-cross-origin"
 
 
+def test_csp_script_nonce_no_unsafe_inline(admin):
+    """I-4: script-src is nonce-based, not 'unsafe-inline'. The page's inline
+    <script> tags carry that exact nonce (so the browser runs them), and no inline
+    on*= event handlers remain (a nonce cannot cover those)."""
+    import re
+
+    r = admin.get("/dashboard")
+    csp = r.headers.get("Content-Security-Policy", "")
+    m = re.search(r"script-src ([^;]+)", csp)
+    assert m, csp
+    script_src = m.group(1)
+    assert "'unsafe-inline'" not in script_src, script_src
+    nonce_m = re.search(r"'nonce-([A-Za-z0-9_-]+)'", script_src)
+    assert nonce_m, script_src
+    nonce = nonce_m.group(1)
+
+    html = r.text
+    # every inline <script> is stamped with the CSP nonce
+    assert f'<script nonce="{nonce}">' in html
+    assert re.search(r"<script(?![^>]*\bnonce=)[^>]*>", html) is None, "an inline <script> has no nonce"
+    # inline handlers were converted to addEventListener
+    for path in ("/dashboard", f"/esf/{new_draft(admin)}"):
+        page = admin.get(path).text
+        assert re.search(r"\son(click|change|submit|input|load)=", page) is None, f"inline handler in {path}"
+
+
 def test_environment_is_production_by_default():
     """Safe-by-default: only the explicit 'development' disables prod hardening."""
     from app.core.config import Settings

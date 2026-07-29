@@ -58,7 +58,13 @@ Also closed the P2 architecture items: A-1 (`ESFService` god-object split into
 `ESFSerializer` + `ESFQueryService` + a lifecycle/coordinator `ESFService`, 755→574
 lines, public API unchanged), A-4 (ESF PDF/ZIP rendering moved from the router into
 `pdf_service`), A-5 (removed dead `snapshot_service.latest_snapshot`). 82 tests pass,
-coverage 91%, ruff clean. See `AUDIT_2026-07-28.md` §7. Remaining audit items: P0
-owner-only tasks (R-1/I-2/I-1, see `ACTION_REQUIRED.md`) and deferred I-6/I-4.
+coverage 91%, ruff clean. Then closed the last two technical items: I-6 (hash-pinned
+`requirements.lock` + Dockerfile `--require-hashes`) and I-4 (CSP `script-src` moved
+from `'unsafe-inline'` to a per-request nonce; all inline event handlers converted to
+listeners; nginx CSP dropped so the app is the single authority). I-4 was verified in
+the browser end-to-end (login→dashboard→editor→publish→view) with zero CSP violations;
+83 tests pass. **All technical audit findings are now closed** — see `AUDIT_2026-07-28.md`
+§7. Remaining: only owner-only P0 tasks (R-1/I-2/I-1, see `ACTION_REQUIRED.md`) and the
+deliberately-out-of-scope items (style-src unsafe-inline; S-0 legal review).
 
 Awaiting direction.

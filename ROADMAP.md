@@ -26,8 +26,13 @@
 20. Audit remediation P2 (AUDIT_2026-07-28): decomposed `ESFService` god-object into
     `ESFSerializer` + `ESFQueryService` + lifecycle service (A-1), PDF/ZIP render moved
     to `pdf_service` (A-4), removed dead `snapshot_service.latest_snapshot` (A-5)
+21. Supply-chain hardening (AUDIT_2026-07-28 I-6): hash-pinned `requirements.lock` +
+    Dockerfile `--require-hashes`
+22. CSP hardening (AUDIT_2026-07-28 I-4): `script-src` nonce instead of `'unsafe-inline'`;
+    all inline event handlers converted to listeners; nginx CSP dropped (app is sole authority)
 
-Status: MVP feature-complete (v1.1.3, RC1). Regression suite: **82 tests pass** (verified 2026-07-29).
+Status: MVP feature-complete (v1.1.3, RC1). Regression suite: **83 tests pass** (verified 2026-07-29).
+All technical audit findings closed; remaining work is owner-only P0 (see ACTION_REQUIRED.md).
 
 ## Remaining — post-MVP backlog (see TECHNICAL_DEBT.md)
 - Production hardening: shared-store rate limiting, Docker WeasyPrint libs,
