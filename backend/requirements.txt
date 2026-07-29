@@ -23,7 +23,7 @@ jinja2==3.1.6            # clears GHSA-q2x7/gmj6/cpwx template CVEs
 python-multipart==0.0.31  # CVE-2024-53981 + GHSA-6jv3/5rvq/v9pg multipart DoS fixes
 weasyprint==69.0          # PDF rendered from the SAME HTML template (latest; CVE fixes)
 qrcode[pil]==7.4.2        # QR generation for public verification (Sprint 7R)
-pillow==12.2.0            # QR PNG image backend (clears all pillow 10.3 CVEs)
+pillow==12.3.0            # QR PNG image backend (12.3.0 clears the 2026 PYSEC pillow CVEs)
 
 # WeasyPrint native libs (macOS dev): brew install pango  (provides pango/cairo/gobject).
 # On Linux/Docker these ship in standard paths. No ReportLab — the PDF is the HTML template.
