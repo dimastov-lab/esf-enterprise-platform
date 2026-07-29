@@ -36,7 +36,7 @@
       <button type="submit">Войти</button>
     </form>
   </div>
-  <script>
+  <script nonce="{{ request.state.csp_nonce if request else '' }}">
     // Logged out here — clear any locally-cached draft / recent-document data so
     // sensitive values (INN, amounts, counterparty details) don't linger in
     // localStorage on a shared machine.

@@ -105,7 +105,7 @@
       <div class="ws-more-menu" id="ws-more-menu" hidden>
         <button type="button" id="ws-save" class="wm-item">💾 Сохранить <span class="wm-key">⌘S</span></button>
         <button type="submit" form="dupform" class="wm-item">⧉ Дублировать ЭСФ</button>
-        <button type="button" class="wm-item" onclick="esfAddRow()">＋ Строка товара</button>
+        <button type="button" class="wm-item" id="ws-addrow">＋ Строка товара</button>
         <button type="button" class="wm-item" id="ws-undo">↶ Отменить <span class="wm-key">⌘Z</span></button>
         <button type="button" class="wm-item" id="ws-redo">↷ Повторить <span class="wm-key">⌘Y</span></button>
         <button type="button" class="wm-item" id="ws-public">🔗 Копировать ссылку</button>
@@ -168,7 +168,7 @@
   <span class="vb-spacer"></span>
   {%- if locked %}
   <a class="vb-btn ghost" href="/dashboard" title="К списку (Esc)">← Назад</a>
-  <button type="button" class="vb-btn" onclick="window.print()" title="Печать (Ctrl/Cmd+P)">Печать</button>
+  <button type="button" class="vb-btn" id="vb-print" title="Печать (Ctrl/Cmd+P)">Печать</button>
   <a class="vb-btn" href="/pdf/{{ esf.uuid }}.pdf" target="_blank" rel="noopener" title="Открыть PDF">PDF</a>
   <a class="vb-btn" href="/qr/{{ esf.uuid }}.png" download="esf-{{ esf.number or esf.uuid }}-qr.png" title="Скачать QR">QR</a>
   <button type="button" class="vb-btn" id="vb-copy" data-link="/esf/check-esf?documentUUID={{ esf.uuid }}" title="Скопировать публичную ссылку">Ссылка</button>
@@ -189,7 +189,7 @@
   {%- endif %}
   {#- Safe confirm: number is read from a data-* attribute (escaped in an
       attribute context), never interpolated into an inline JS handler. -#}
-  <script>
+  <script nonce="{{ request.state.csp_nonce if request else '' }}">
   (function () {
     if (window.__esfConfirmBound) return;
     window.__esfConfirmBound = true;
@@ -326,7 +326,7 @@
     <tbody id="esf-items">
       {% for it in esf['items'] %}
       <tr class="item">
-        <td class="ctr">{% if mode == 'edit' %}<span class="rownum"></span><button type="button" class="rowdel" onclick="esfDelRow(this)" title="Удалить строку">×</button>{% else %}{{ it.row }}{% endif %}</td>
+        <td class="ctr">{% if mode == 'edit' %}<span class="rownum"></span><button type="button" class="rowdel" title="Удалить строку">×</button>{% else %}{{ it.row }}{% endif %}</td>
         <td class="ctr">{{ val(it.code, 'item_tnved', ph='ТН ВЭД') }}</td>
         <td class="left">{{ val(it.name, 'item_name', req=true, ph='наименование товара') }}</td>
         <td class="ctr">{{ val(it.unit, 'item_unit', req=true, ph='ед.') }}</td>
@@ -392,7 +392,7 @@
 {%- if mode == 'edit' %}</div></div>{% endif %}
 
 {%- if mode in ['view', 'public'] %}
-<script>
+<script nonce="{{ request.state.csp_nonce if request else '' }}">
   /* ESF viewer zoom engine: Fit Page (default) · Fit Width · 100/125/150 · ±,
      remembers the last zoom, keeps the page centered, never distorts A4
      proportions (uniform scale). Used by view + public; absent in edit/pdf. */
@@ -477,6 +477,9 @@
     }
     {%- if locked %}
     document.addEventListener('keydown', function(e){ if (e.key === 'Escape') location.href = '/dashboard'; });
+    // Print button (was inline onclick="window.print()").
+    var pbtn = document.getElementById('vb-print');
+    if (pbtn) pbtn.addEventListener('click', function(){ window.print(); });
     {%- endif %}
     var c = document.getElementById('vb-copy');
     if (c) c.addEventListener('click', function(){
@@ -538,7 +541,7 @@
           <div class="ws-hint">Вложения (договоры, ТТН, сканы) — в следующей версии.</div>
         </div>
         <div class="wt-panel" data-tab="danger" hidden>
-          <form method="post" action="/esf/{{ esf.uuid }}/delete" onsubmit="return confirm('Удалить документ безвозвратно? Это действие необратимо.');">
+          <form method="post" action="/esf/{{ esf.uuid }}/delete" data-confirm-delete>
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button type="submit" class="ebtn danger">Удалить документ</button>
           </form>
@@ -564,10 +567,10 @@
 {%- endif %}
 
 {%- if mode == 'edit' %}
-<script>
+<script nonce="{{ request.state.csp_nonce if request else '' }}">
   // markup for one editable goods row (shared by add / duplicate / insert)
   function esfRowHTML(){
-    return '<td class="ctr"><span class="rownum"></span><button type="button" class="rowdel" onclick="esfDelRow(this)" title="Удалить строку">×</button></td>' +
+    return '<td class="ctr"><span class="rownum"></span><button type="button" class="rowdel" title="Удалить строку">×</button></td>' +
       '<td class="ctr"><input class="cinp" name="item_tnved" placeholder="ТН ВЭД"></td>' +
       '<td class="left"><input class="cinp req" name="item_name" placeholder="наименование товара"></td>' +
       '<td class="ctr"><input class="cinp req" name="item_unit" placeholder="ед."></td>' +
@@ -603,6 +606,17 @@
     window.esfDirty && window.esfDirty();
     return tr;
   }
+
+  // "Add row" menu button + danger-zone delete confirm (were inline onclick/onsubmit;
+  // moved to listeners so the CSP can drop script 'unsafe-inline').
+  (function(){
+    var addBtn = document.getElementById('ws-addrow');
+    if (addBtn) addBtn.addEventListener('click', function(){ esfAddRow(); });
+    var delForm = document.querySelector('form[data-confirm-delete]');
+    if (delForm) delForm.addEventListener('submit', function(e){
+      if (!window.confirm('Удалить документ безвозвратно? Это действие необратимо.')) e.preventDefault();
+    });
+  })();
 
   // ---- Autosave: on change (debounced ~1.5s) and every 10s ----
   (function(){
@@ -995,6 +1009,8 @@
     });
     // click the № cell to (multi-)select a row
     tbody.addEventListener('click', function(e){
+      // Row delete "×" (was inline onclick; delegated here so the CSP drops 'unsafe-inline').
+      var del = e.target.closest('.rowdel'); if (del){ e.preventDefault(); esfDelRow(del); return; }
       var cell = e.target.closest('td.ctr'); if (!cell || e.target.closest('input')) return;
       var tr = cell.closest('tr.item'); if (!tr || cell !== tr.firstElementChild) return;
       toggleSelect(tr, e.ctrlKey || e.metaKey || e.shiftKey);

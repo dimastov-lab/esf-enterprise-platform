@@ -21,8 +21,18 @@
 16. Login rate limiting (5 / 5 min / IP → 429) — TD-019
 17. Persisted previously view-only fields (branch_inn, tax_office_code, item customs_refs) — TD-007
 18. Exact bundled DejaVu Sans font + official QR format — pixel-faithful clone (TD-005)
+19. Audit remediation (AUDIT_2026-07-28): repository layer boundary (A-2), error
+    visibility in batch/audit paths (A-6), `owner_id NOT NULL` (A-7, migration b1c2d3e4f5a6)
+20. Audit remediation P2 (AUDIT_2026-07-28): decomposed `ESFService` god-object into
+    `ESFSerializer` + `ESFQueryService` + lifecycle service (A-1), PDF/ZIP render moved
+    to `pdf_service` (A-4), removed dead `snapshot_service.latest_snapshot` (A-5)
+21. Supply-chain hardening (AUDIT_2026-07-28 I-6): hash-pinned `requirements.lock` +
+    Dockerfile `--require-hashes`
+22. CSP hardening (AUDIT_2026-07-28 I-4): `script-src` nonce instead of `'unsafe-inline'`;
+    all inline event handlers converted to listeners; nginx CSP dropped (app is sole authority)
 
-Status: MVP feature-complete (v1.1.3, RC1). Regression suite: **55 tests pass** (verified 2026-07-26).
+Status: MVP feature-complete (v1.1.3, RC1). Regression suite: **83 tests pass** (verified 2026-07-29).
+All technical audit findings closed; remaining work is owner-only P0 (see ACTION_REQUIRED.md).
 
 ## Remaining — post-MVP backlog (see TECHNICAL_DEBT.md)
 - Production hardening: shared-store rate limiting, Docker WeasyPrint libs,

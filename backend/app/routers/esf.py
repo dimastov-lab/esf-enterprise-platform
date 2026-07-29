@@ -21,7 +21,7 @@ from app.db.session import get_db
 from app.models import DocumentStatus, User
 from app.services import audit_service
 from app.services.esf_service import ESFService
-from app.services.pdf_service import render_pdf
+from app.services.pdf_service import render_esf_pdf, render_esf_zip
 
 _TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
@@ -46,7 +46,7 @@ def _qdate(s: str):
 def _render_form(request: Request, service: ESFService, doc, user=None, errors=None, ok_msg=None):
     """Render the document for its owner: editable form (DRAFT/VALIDATED) or a
     read-only, snapshot-backed view (PUBLISHED/CANCELLED)."""
-    from app.services.esf_service import STATUS_LABELS
+    from app.services.esf_serializer import STATUS_LABELS
     csrf = get_csrf_token(request)
     workspace = {
         "username": user.username if user else "",
@@ -172,19 +172,6 @@ async def esf_batch_publish(request: Request, db: Session = Depends(get_db),
     return RedirectResponse(url="/dashboard", status_code=303)
 
 
-def _render_pdf_zip(pages) -> bytes:
-    """CPU-bound: render each (filename, html) with WeasyPrint into one ZIP.
-    Runs in a threadpool so it never blocks the event loop."""
-    import io
-    import zipfile
-
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for filename, html in pages:
-            zf.writestr(filename, render_pdf(html))
-    return buf.getvalue()
-
-
 # Batch PDF is capped low: WeasyPrint is ~2-3s/doc, so keep the whole request
 # comfortably under the reverse-proxy read timeout (nginx 60s).
 _BATCH_PDF_CAP = 20
@@ -196,22 +183,20 @@ async def esf_batch_pdf(request: Request, db: Session = Depends(get_db),
     """Render the selected documents and return them as a single ZIP download."""
     uuids = (await request.form()).getlist("uuid")[:_BATCH_PDF_CAP]
     service = ESFService(db)
-    tmpl = templates.env.get_template("esf/form.html")
-    # Build (filename, html) in the request context (fast DB access); non-editable
-    # docs render from the immutable snapshot, matching the single-PDF route.
-    pages = []
+    # Serialize in the request context (fast DB access); non-editable docs render
+    # from the immutable snapshot, matching the single-PDF route. The blocking
+    # template + WeasyPrint render is then offloaded off the event loop.
+    named = []
     for u in uuids:
         doc = service.get_if_owner(u, user)
         if doc is None:
             continue
         esf = service.serialize(doc) if service.is_editable(doc) else service.serialize_published(doc)
-        html = tmpl.render(esf=esf, mode="pdf", dev=False, edit=False, locked=False, errors=[])
         name = (doc.esf_number or str(doc.uuid)).replace("/", "-")
-        pages.append((f"esf-{name}.pdf", html))
-    # Offload the blocking WeasyPrint render off the event loop.
-    zip_bytes = await run_in_threadpool(_render_pdf_zip, pages)
+        named.append((f"esf-{name}.pdf", esf))
+    zip_bytes = await run_in_threadpool(render_esf_zip, named)
     audit_service.record(db, audit_service.DOWNLOAD_PDF, user=user,
-                         request=request, meta={"action": "batch_pdf", "count": len(pages)})
+                         request=request, meta={"action": "batch_pdf", "count": len(named)})
     return Response(content=zip_bytes, media_type="application/zip",
                     headers={"Content-Disposition": 'attachment; filename="esf-batch.zip"'})
 
@@ -340,12 +325,9 @@ def esf_pdf(doc_uuid: str, request: Request,
         return HTMLResponse("Document not found", status_code=404)
     esf = service.serialize(doc) if service.is_editable(doc) \
         else service.serialize_published(doc)
-    html = templates.env.get_template("esf/form.html").render(
-        esf=esf, mode="pdf", dev=False, edit=False, locked=False, errors=[]
-    )
     audit_service.record(db, audit_service.DOWNLOAD_PDF, user=user, document=doc, request=request)
     return Response(
-        content=render_pdf(html),
+        content=render_esf_pdf(esf),
         media_type="application/pdf",
         headers={"Content-Disposition": f'inline; filename="esf-{doc_uuid}.pdf"'},
     )

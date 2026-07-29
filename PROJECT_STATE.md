@@ -47,4 +47,24 @@ has grown from the 23 recorded at v1.1.3 to 55 — tests were added after RC1 wi
 state entry. This is a content/history gap worth a dedicated reconciliation pass, not a
 wording fix. (Historical per-version counts above are left as-is: they were correct when written.)
 
+Audit remediation 2026-07-29 (code quality, no user-facing change): closed audit
+findings A-2 (all `Session` access in `ESFService` moved behind
+`ESFDocumentRepository` — `flush`/`refresh`/`rollback`/`add_pending`), A-6
+(`batch_publish` and `audit_service.record` now log failures instead of swallowing
+them), and A-7 (`counterparties.owner_id` / `goods.owner_id` → `NOT NULL`, reversible
+migration `b1c2d3e4f5a6`; dead NULL-owner cache rows purged). Suite now **82 tests
+pass**; Postgres at head `b1c2d3e4f5a6`; `alembic` downgrade/upgrade round-trips clean.
+Also closed the P2 architecture items: A-1 (`ESFService` god-object split into
+`ESFSerializer` + `ESFQueryService` + a lifecycle/coordinator `ESFService`, 755→574
+lines, public API unchanged), A-4 (ESF PDF/ZIP rendering moved from the router into
+`pdf_service`), A-5 (removed dead `snapshot_service.latest_snapshot`). 82 tests pass,
+coverage 91%, ruff clean. Then closed the last two technical items: I-6 (hash-pinned
+`requirements.lock` + Dockerfile `--require-hashes`) and I-4 (CSP `script-src` moved
+from `'unsafe-inline'` to a per-request nonce; all inline event handlers converted to
+listeners; nginx CSP dropped so the app is the single authority). I-4 was verified in
+the browser end-to-end (login→dashboard→editor→publish→view) with zero CSP violations;
+83 tests pass. **All technical audit findings are now closed** — see `AUDIT_2026-07-28.md`
+§7. Remaining: only owner-only P0 tasks (R-1/I-2/I-1, see `ACTION_REQUIRED.md`) and the
+deliberately-out-of-scope items (style-src unsafe-inline; S-0 legal review).
+
 Awaiting direction.

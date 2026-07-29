@@ -16,9 +16,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Deterministic dependencies first (better layer caching). No dev/test deps.
-COPY requirements.txt .
-RUN pip install -r requirements.txt
+# Deterministic, hash-pinned dependencies first (better layer caching). No dev/test
+# deps. requirements.lock is the full transitive closure with SHA256 hashes, generated
+# from requirements.txt via `pip-compile --generate-hashes` (see requirements.txt).
+# --require-hashes makes the build fail closed if any artifact's hash does not match,
+# so a compromised/substituted package on PyPI cannot slip into the image.
+COPY requirements.lock .
+RUN pip install --require-hashes -r requirements.lock
 
 # Application code
 COPY . /app

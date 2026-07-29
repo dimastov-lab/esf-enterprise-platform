@@ -1,5 +1,12 @@
 # Active runtime dependencies. Target runtime is Python 3.11 (see backend/Dockerfile).
 # Versions are kept current with the security advisory DB; `pip-audit` runs in CI.
+#
+# This file is the SOURCE. The Docker image installs from requirements.lock — the
+# hash-pinned transitive closure. After changing any pin here, regenerate the lock
+# in a Python 3.11 environment (matching the Dockerfile runtime):
+#     docker run --rm -v "$PWD:/w" -w /w python:3.11-slim-bookworm \
+#       sh -c "pip install -q pip-tools && \
+#              pip-compile --generate-hashes --output-file=requirements.lock requirements.txt"
 # starlette is pinned explicitly (fastapi's allowed range is broad, so leaving it
 # unpinned resolves non-deterministically). 1.3.1 clears all starlette advisories and
 # required migrating templates to TemplateResponse(request, name, ctx); the full
@@ -16,7 +23,7 @@ jinja2==3.1.6            # clears GHSA-q2x7/gmj6/cpwx template CVEs
 python-multipart==0.0.31  # CVE-2024-53981 + GHSA-6jv3/5rvq/v9pg multipart DoS fixes
 weasyprint==69.0          # PDF rendered from the SAME HTML template (latest; CVE fixes)
 qrcode[pil]==7.4.2        # QR generation for public verification (Sprint 7R)
-pillow==12.2.0            # QR PNG image backend (clears all pillow 10.3 CVEs)
+pillow==12.3.0            # QR PNG image backend (12.3.0 clears the 2026 PYSEC pillow CVEs)
 
 # WeasyPrint native libs (macOS dev): brew install pango  (provides pango/cairo/gobject).
 # On Linux/Docker these ship in standard paths. No ReportLab — the PDF is the HTML template.

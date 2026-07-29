@@ -30,9 +30,10 @@ class Counterparty(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     # Owner scoping (H1): every directory entry belongs to the user who saved it.
-    # Nullable only to accommodate pre-migration rows; new rows always set it.
-    owner_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
+    # NOT NULL — legacy pre-scoping rows (owner_id NULL) were purged in migration
+    # b1c2d3e4f5a6 (A-7); every code path that inserts a row sets owner_id.
+    owner_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     inn: Mapped[Optional[str]] = mapped_column(String(20), index=True)
     name: Mapped[Optional[str]] = mapped_column(String(500), index=True)

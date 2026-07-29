@@ -5,6 +5,7 @@ Sprint 9R adds session-based authentication + RBAC. Protected routes depend on
 redirected to /login. Public verification (`/esf/check-esf`, `/qr/*.png`) stays open.
 Schema is managed by Alembic migrations, not by create_all at startup.
 """
+import secrets
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request
@@ -36,12 +37,16 @@ app = FastAPI(
 observability.install(app)
 
 # Content-Security-Policy + hardening headers on every response (defence-in-depth
-# for XSS/clickjacking). 'unsafe-inline' is required because the templates use
-# inline <script>/style; the value still blocks external script/object sources,
-# framing, and base-uri hijacking. Served in all environments; HSTS only in prod.
-_CSP = (
+# for XSS/clickjacking). script-src uses a per-request nonce instead of
+# 'unsafe-inline': every inline <script> in a template carries the same nonce
+# (request.state.csp_nonce), so the browser runs our scripts but blocks any
+# attacker-injected inline script. All inline event handlers (onclick=, …) were
+# removed in favour of addEventListener, since a nonce does not cover them.
+# style-src keeps 'unsafe-inline' (the templates rely on inline style attributes;
+# out of scope for this hardening). Served in all environments; HSTS only in prod.
+_CSP_TEMPLATE = (
     "default-src 'self'; "
-    "script-src 'self' 'unsafe-inline'; "
+    "script-src 'self' 'nonce-{nonce}'; "
     "style-src 'self' 'unsafe-inline'; "
     "img-src 'self' data:; "
     "font-src 'self'; "
@@ -54,8 +59,12 @@ _CSP = (
 
 @app.middleware("http")
 async def _security_headers(request: Request, call_next):
+    # Generate the nonce BEFORE the route runs so templates can stamp it onto their
+    # inline <script> tags; the CSP header below advertises the same value.
+    nonce = secrets.token_urlsafe(16)
+    request.state.csp_nonce = nonce
     response = await call_next(request)
-    response.headers.setdefault("Content-Security-Policy", _CSP)
+    response.headers.setdefault("Content-Security-Policy", _CSP_TEMPLATE.format(nonce=nonce))
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "DENY")
     response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")

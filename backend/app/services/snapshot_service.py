@@ -6,9 +6,6 @@ at the ORM layer (see app/models/esf_snapshot.py).
 """
 import hashlib
 import json
-from typing import Optional
-
-from sqlalchemy.orm import Session
 
 from app.models import ESFDocument, ESFSnapshot
 
@@ -27,13 +24,4 @@ def make_snapshot(doc: ESFDocument, payload: dict) -> ESFSnapshot:
         payload_json=payload,
         sha256=content_hash(payload),
         immutable=True,
-    )
-
-
-def latest_snapshot(db: Session, doc: ESFDocument) -> Optional[ESFSnapshot]:
-    return (
-        db.query(ESFSnapshot)
-        .filter(ESFSnapshot.document_id == doc.id)
-        .order_by(ESFSnapshot.created_at.desc(), ESFSnapshot.id.desc())
-        .first()
     )

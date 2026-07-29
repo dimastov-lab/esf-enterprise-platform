@@ -191,7 +191,7 @@
     <form class="toolbar" method="get" action="/dashboard">
       <input type="text" id="search" name="q" value="{{ filters.q }}" placeholder="Поиск: номер, ИНН, поставщик, покупатель…  ( / )" autocomplete="off" aria-label="Поиск документов">
       <div class="fld"><label for="statusFilter">Статус</label>
-        <select id="statusFilter" name="status" onchange="this.form.submit()">
+        <select id="statusFilter" name="status" data-autosubmit>
           <option value="">Все</option>
           <option value="DRAFT" {{ 'selected' if filters.status == 'DRAFT' }}>Черновик</option>
           <option value="VALIDATED" {{ 'selected' if filters.status == 'VALIDATED' }}>Проверен</option>
@@ -199,8 +199,8 @@
           <option value="CANCELLED" {{ 'selected' if filters.status == 'CANCELLED' }}>Отменён</option>
         </select>
       </div>
-      <div class="fld"><label for="dateFrom">Дата с</label><input type="date" id="dateFrom" name="date_from" value="{{ filters.date_from }}" onchange="this.form.submit()"></div>
-      <div class="fld"><label for="dateTo">по</label><input type="date" id="dateTo" name="date_to" value="{{ filters.date_to }}" onchange="this.form.submit()"></div>
+      <div class="fld"><label for="dateFrom">Дата с</label><input type="date" id="dateFrom" name="date_from" value="{{ filters.date_from }}" data-autosubmit></div>
+      <div class="fld"><label for="dateTo">по</label><input type="date" id="dateTo" name="date_to" value="{{ filters.date_to }}" data-autosubmit></div>
       <input type="hidden" name="sort" value="{{ sort }}"><input type="hidden" name="dir" value="{{ dir }}">
       <input type="hidden" name="page_size" value="{{ page_size }}">
       <button type="submit" class="apply">Найти</button>
@@ -293,7 +293,12 @@
     {% endif %}
   </div>
 
-  <script>
+  <script nonce="{{ request.state.csp_nonce if request else '' }}">
+    // Filters auto-submit on change (was inline onchange; moved here so the CSP can
+    // drop 'unsafe-inline' for scripts).
+    document.querySelectorAll('form.toolbar [data-autosubmit]').forEach(function (el) {
+      el.addEventListener('change', function () { if (el.form) el.form.submit(); });
+    });
     // Safe delete confirm: the document number is read from a data-* attribute
     // (escaped in attribute context), never interpolated into an inline handler.
     document.addEventListener('submit', function (e) {
