@@ -19,9 +19,10 @@ class Good(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     # Owner scoping (H1): the catalog is per-user, not a shared global directory.
-    # Nullable only for pre-migration rows; new rows always set it.
-    owner_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
+    # NOT NULL — legacy pre-scoping rows (owner_id NULL) were purged in migration
+    # b1c2d3e4f5a6 (A-7); every code path that inserts a row sets owner_id.
+    owner_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     code: Mapped[Optional[str]] = mapped_column(String(50), index=True)   # ТН ВЭД
     name: Mapped[Optional[str]] = mapped_column(String(500), index=True)  # dedup key (case-insensitive)

@@ -9,13 +9,41 @@ The template's `<link href="/static/css/esf_form.css">` is resolved by a small
 url_fetcher that serves the bundled stylesheet, so rendering needs no running web
 server and no network.
 """
+import io
 import os
 import sys
+import zipfile
 from pathlib import Path
+from typing import List, Tuple
+
+from app.core.config import settings
 
 _STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 _CSS_PATH = _STATIC_DIR / "css" / "esf_form.css"
 _QR_DIR = Path(__file__).resolve().parent.parent.parent / "storage" / "qr"
+_TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
+
+# The ESF document template (mode='pdf') is the single source of layout, shared
+# with the on-screen form. Built once and cached; the DEMO-watermark visibility is
+# a deployment-wide setting, exposed as the same Jinja global the routers use.
+_env = None
+
+
+def _template_env():
+    global _env
+    if _env is None:
+        from fastapi.templating import Jinja2Templates
+        jt = Jinja2Templates(directory=str(_TEMPLATES_DIR))
+        jt.env.globals["show_demo_watermark"] = settings.SHOW_DEMO_WATERMARK
+        _env = jt.env
+    return _env
+
+
+def _render_html(esf: dict) -> str:
+    """Render the ESF template for `esf` in PDF mode (no request/CSRF context)."""
+    return _template_env().get_template("esf/form.html").render(
+        esf=esf, mode="pdf", dev=False, edit=False, locked=False, errors=[]
+    )
 
 
 def _ensure_native_libs() -> None:
@@ -53,3 +81,25 @@ def render_pdf(html: str) -> bytes:
         return {"string": b"", "mime_type": "application/octet-stream"}
 
     return HTML(string=html, base_url="http://esf.local/", url_fetcher=fetcher).write_pdf()
+
+
+def render_esf_pdf(esf: dict) -> bytes:
+    """Render one serialized ESF payload (the template-ready dict) to PDF bytes.
+
+    Owns the template render + WeasyPrint step so the router stays a thin controller.
+    CPU-bound; FastAPI runs the sync PDF route in a threadpool, so no extra offload
+    is needed here (the batch path offloads explicitly via run_in_threadpool)."""
+    return render_pdf(_render_html(esf))
+
+
+def render_esf_zip(named_docs: List[Tuple[str, dict]]) -> bytes:
+    """Render several ESF payloads into one ZIP: each `(filename, esf)` becomes a PDF.
+
+    Pure CPU work (template render + WeasyPrint, no DB access) so callers offload it
+    to a threadpool. The serialization/DB access happens in the request context before
+    this is called."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for filename, esf in named_docs:
+            zf.writestr(filename, render_pdf(_render_html(esf)))
+    return buf.getvalue()

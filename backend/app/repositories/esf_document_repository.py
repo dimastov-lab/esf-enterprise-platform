@@ -168,6 +168,23 @@ class ESFDocumentRepository:
         self.db.refresh(doc)
         return doc
 
+    def add_pending(self, obj) -> None:
+        """Stage a new row in the current transaction WITHOUT committing.
+
+        For callers that own the commit boundary themselves (e.g. the atomic
+        publish, which stages the snapshot then commits document + snapshot in one
+        transaction). Keeps Session access inside the repository layer."""
+        self.db.add(obj)
+
+    def flush(self) -> None:
+        self.db.flush()
+
+    def refresh(self, obj) -> None:
+        self.db.refresh(obj)
+
+    def rollback(self) -> None:
+        self.db.rollback()
+
     def commit(self) -> None:
         self.db.commit()
 

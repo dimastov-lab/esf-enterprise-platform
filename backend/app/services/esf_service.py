@@ -5,7 +5,7 @@ Controller (router) -> this service -> repository -> DB.
 """
 import logging
 import re
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import List, Optional
 
@@ -27,6 +27,8 @@ from app.models import (
 )
 from app.repositories.esf_document_repository import ESFDocumentRepository
 from app.services import snapshot_service
+from app.services.esf_query_service import ESFQueryService
+from app.services.esf_serializer import ESFSerializer
 from app.services.validation_service import validate_document
 
 _log = logging.getLogger("esf.error")
@@ -55,14 +57,6 @@ _ESF_NUMBER_RE = re.compile(r"^[0-9-]{1,40}$")
 
 EDITABLE_STATUSES = {DocumentStatus.DRAFT, DocumentStatus.VALIDATED}
 
-STATUS_LABELS = {
-    DocumentStatus.DRAFT: "Черновик (DRAFT)",
-    DocumentStatus.VALIDATED: "Проверен (VALIDATED)",
-    DocumentStatus.SNAPSHOT_CREATED: "Снапшот (SNAPSHOT_CREATED)",
-    DocumentStatus.PUBLISHED: "Опубликован (PUBLISHED)",
-    DocumentStatus.CANCELLED: "Отменён (CANCELLED)",
-}
-
 
 def _dec(s) -> Optional[Decimal]:
     s = (s or "").strip().replace(" ", "").replace(",", ".")
@@ -86,121 +80,43 @@ def _parse_date(s) -> Optional[date]:
     return None
 
 
-def _date_box(d) -> str:
-    return d.strftime("%d%m%Y") if d else ""
-
-
-def _date_disp(d) -> str:
-    return d.strftime("%d.%m.%Y") if d else ""
-
-
-def _money(d) -> str:
-    return f"{d:.2f}" if d is not None else ""
-
-
-def _num(d) -> str:
-    return ("" if d is None else str(d))
-
-
-def _qty5(d) -> str:
-    """Price / quantity exactly as the GNS form prints them — 5 decimal places
-    (e.g. 116.49850, 21000.00000), regardless of how they were entered."""
-    return f"{d:.5f}" if d is not None else ""
-
-
-def _rate(d) -> str:
-    """Rates (currency rate, VAT rate) without trailing-zero noise: 1.226300 -> 1.2263, 0.00 -> 0."""
-    if d is None:
-        return ""
-    return format(d.normalize(), "f")
-
-
 class ESFService:
+    """Document lifecycle + coordinator.
+
+    Owns every mutating operation (create / save / validate / publish / delete /
+    duplicate / correct / cancel / batch) plus QR persistence, and stays the single
+    entry point the routers use. Read/query and presentation were split out (audit
+    A-1) into ESFQueryService and ESFSerializer; the thin pass-throughs below keep
+    the public API stable while that logic lives in its own focused services.
+    """
+
     def __init__(self, db: Session):
         self.db = db
         self.repo = ESFDocumentRepository(db)
+        self.serializer = ESFSerializer()
+        self.query = ESFQueryService(db)
 
-    # ---- queries -------------------------------------------------------
-    @staticmethod
-    def _row(doc: ESFDocument) -> dict:
-        parties = {p.party_type: p for p in doc.parties}
-        sup = parties.get(PartyType.SUPPLIER)
-        buy = parties.get(PartyType.BUYER)
-        return {
-            "uuid": str(doc.uuid),
-            "number": doc.esf_number or "—",
-            "date": _date_disp(doc.created_at.date() if doc.created_at else None),
-            "supplier": (sup.name if sup and sup.name else "—"),
-            "buyer": (buy.name if buy and buy.name else "—"),
-            "status": STATUS_LABELS.get(doc.status, doc.status.value),
-            "status_code": doc.status.value,
-            "published": doc.status == DocumentStatus.PUBLISHED,
-            "created_sort": doc.created_at.strftime("%Y%m%d%H%M%S") if doc.created_at else "",
-            "updated": doc.updated_at.strftime("%Y-%m-%d %H:%M") if doc.updated_at else "",
-        }
+    # ---- read side (delegated) ----------------------------------------
+    def serialize(self, doc: ESFDocument) -> dict:
+        return self.serializer.serialize(doc)
+
+    def serialize_published(self, doc: ESFDocument) -> dict:
+        return self.query.serialize_published(doc)
 
     def list_rows(self, user: User) -> List[dict]:
-        # kept for compatibility; the dashboard now uses page() (server-side)
-        return [self._row(doc) for doc in self.repo.list_for_user(user)]
+        return self.query.list_rows(user)
 
-    def page(self, user: User, *, page: int = 1, page_size: int = 25, q: str = "",
-             status: str = "", currency: str = "", supplier: str = "", buyer: str = "",
-             date_from=None, date_to=None, sort: str = "updated", direction: str = "desc") -> dict:
-        """One server-side page: pagination + search + sort + filters. Returns the
-        page rows plus {page, page_size, total, total_pages} for the UI / JSON API."""
-        page = max(1, int(page or 1))
-        page_size = min(200, max(1, int(page_size or 25)))
-        sort = sort if sort in {"created", "updated", "number", "status", "date", "supplier", "buyer"} else "updated"
-        direction = "asc" if str(direction).lower() == "asc" else "desc"
-        status_enum = None
-        if status:
-            try:
-                status_enum = DocumentStatus(status)
-            except ValueError:
-                status_enum = None
-        items, total = self.repo.paginate_for_user(
-            user, page=page, page_size=page_size, sort=sort, direction=direction,
-            search=(q or "").strip() or None, status=status_enum,
-            currency=(currency or "").strip() or None,
-            supplier=(supplier or "").strip() or None, buyer=(buyer or "").strip() or None,
-            date_from=date_from, date_to=date_to,
-        )
-        total_pages = max(1, (total + page_size - 1) // page_size)
-        return {
-            "rows": [self._row(d) for d in items],
-            "page": page, "page_size": page_size, "total": total, "total_pages": total_pages,
-            "sort": sort, "dir": direction,
-        }
+    def page(self, user: User, **kwargs) -> dict:
+        return self.query.page(user, **kwargs)
 
     def dashboard_stats(self, user: User) -> dict:
-        """Aggregate counts + a 7-day activity series — two GROUP BY queries, no
-        row loading (scales to any dataset size)."""
-        counts = self.repo.status_counts(user)
-        today = datetime.now(timezone.utc).date()
-        days = [today - timedelta(days=i) for i in range(6, -1, -1)]  # oldest -> newest
-        created = self.repo.created_counts_since(user, days[0])
-        week = [{"day": d.strftime("%d.%m"), "count": created.get(d, 0)} for d in days]
-        return {
-            "total": sum(counts.values()),
-            "drafts": counts.get(DocumentStatus.DRAFT.value, 0),
-            "validated": counts.get(DocumentStatus.VALIDATED.value, 0),
-            "published": counts.get(DocumentStatus.PUBLISHED.value, 0),
-            "cancelled": counts.get(DocumentStatus.CANCELLED.value, 0),
-            "today": created.get(today, 0),
-            "week": week,
-            "week_max": max([w["count"] for w in week] + [1]),
-        }
+        return self.query.dashboard_stats(user)
 
     def get_for_user(self, doc_uuid: str, user: User) -> Optional[ESFDocument]:
-        doc = self.repo.get_by_uuid(doc_uuid)
-        if doc is None:
-            return None
-        require_owner_or_admin(doc, user)
-        return doc
+        return self.query.get_for_user(doc_uuid, user)
 
     def get_public(self, doc_uuid: str) -> Optional[ESFDocument]:
-        """Public lookup (no owner guard). Used by the open verification page / QR."""
-        return self.repo.get_by_uuid(doc_uuid)
+        return self.query.get_public(doc_uuid)
 
     def ensure_qr(self, doc: ESFDocument, commit: bool = True) -> bytes:
         """Generate + persist the QR PNG, record qr_path, and return the bytes.
@@ -295,7 +211,7 @@ class ESFService:
         doc.status = DocumentStatus.CANCELLED
         doc.cancelled_at = datetime.now(timezone.utc)
         self.repo.commit()
-        self.db.refresh(doc)
+        self.repo.refresh(doc)
         return doc
 
     def create_correction(self, doc: ESFDocument, user: User) -> ESFDocument:
@@ -313,7 +229,7 @@ class ESFService:
         si.correction_number = doc.esf_number
         si.correction_date = doc.issue_date or (doc.created_at.date() if doc.created_at else None)
         self.repo.commit()
-        self.db.refresh(new)
+        self.repo.refresh(new)
         return new
 
     # ---- batch operations (v6.0 #3) -----------------------------------
@@ -351,6 +267,13 @@ class ESFService:
                 published += 1 if not errors else 0
                 failed += 1 if errors else 0
             except Exception:
+                # One document failing (lock contention, a race that flips its
+                # status, a DB error) must not abort the whole batch — but a
+                # silently swallowed error is invisible. Log it with the document
+                # uuid and reset the session so the next iteration starts clean.
+                self.repo.rollback()
+                _log.exception("batch publish failed for document %s",
+                               getattr(doc, "uuid", "?"))
                 failed += 1
         return {"published": published, "skipped": skipped, "failed": failed}
 
@@ -373,7 +296,7 @@ class ESFService:
         try:
             self.repo.lock(doc)
         except OperationalError:
-            self.db.rollback()
+            self.repo.rollback()
             raise HTTPException(
                 status_code=409,
                 detail="Документ сейчас изменяется другим процессом. Повторите попытку.",
@@ -484,12 +407,12 @@ class ESFService:
         try:
             self.repo.commit()
         except IntegrityError:
-            self.db.rollback()
+            self.repo.rollback()
             raise HTTPException(
                 status_code=409,
                 detail="Номер ЭСФ уже используется другим документом.",
             )
-        self.db.refresh(doc)
+        self.repo.refresh(doc)
         return doc
 
     # ---- validate / publish (lifecycle) -------------------------------
@@ -501,7 +424,7 @@ class ESFService:
         errors = validate_document(doc)
         doc.status = DocumentStatus.DRAFT if errors else DocumentStatus.VALIDATED
         self.repo.commit()
-        self.db.refresh(doc)
+        self.repo.refresh(doc)
         return errors
 
     def next_esf_number(self) -> str:
@@ -548,44 +471,21 @@ class ESFService:
             doc.published_at = datetime.now(timezone.utc)   # 6. published_at (in memory)
             self.ensure_qr(doc, commit=False)               # 3. generate QR (no early commit)
             payload = self.serialize(doc)                   # 4. immutable snapshot...
-            self.db.add(snapshot_service.make_snapshot(doc, payload))
+            self.repo.add_pending(snapshot_service.make_snapshot(doc, payload))
             self.repo.commit()                              # 7. commit once
         except IntegrityError:
             # e.g. an esf_number collision that slipped past the guard — surface a
             # clean 409 (retryable) instead of an opaque 500.
-            self.db.rollback()
+            self.repo.rollback()
             raise HTTPException(
                 status_code=409,
                 detail="Публикация не удалась из-за конфликта номера ЭСФ. Повторите попытку.",
             )
         except Exception:
-            self.db.rollback()                              # no partial publication
+            self.repo.rollback()                              # no partial publication
             raise
-        self.db.refresh(doc)
+        self.repo.refresh(doc)
         return []
-
-    def serialize_published(self, doc: ESFDocument) -> dict:
-        """Render data for a published doc from its immutable snapshot.
-
-        The stored sha256 is re-verified against the payload on every read, so any
-        DB-level tampering with `payload_json` (which the append-only triggers make
-        hard, but this is defence-in-depth) is caught and fails closed instead of
-        serving a corrupted legal record.
-        """
-        snap = self.repo.latest_snapshot(doc)
-        if snap is None:
-            return self.serialize(doc)
-        if snapshot_service.content_hash(snap.payload_json) != snap.sha256:
-            _log.error(
-                "snapshot integrity check failed",
-                extra={"document_uuid": str(doc.uuid), "snapshot_id": snap.id},
-            )
-            raise HTTPException(
-                status_code=500,
-                detail="Снимок документа повреждён (нарушена целостность). "
-                       "Обратитесь к администратору.",
-            )
-        return snap.payload_json
 
     def _rebuild_items(self, doc: ESFDocument, form) -> None:
         codes = form.getlist("item_tnved")
@@ -649,7 +549,7 @@ class ESFService:
         # otherwise reusing row_number values trips the (document_id, row_number)
         # unique constraint mid-flush.
         doc.items.clear()
-        self.db.flush()
+        self.repo.flush()
         for it in new_items:
             doc.items.append(it)
 
@@ -672,84 +572,3 @@ class ESFService:
         tot.nsp_total = _bounded(nsp_total.quantize(TWO))
         tot.grand_total = _bounded(grand)
         tot.currency_total = _bounded(currency_total)
-
-    # ---- serialize for the template ------------------------------------
-    def serialize(self, doc: ESFDocument) -> dict:
-        parties = {p.party_type: p for p in doc.parties}
-        sup = parties.get(PartyType.SUPPLIER) or ESFParty()
-        buy = parties.get(PartyType.BUYER) or ESFParty()
-        si = doc.supply_info or ESFSupplyInfo()
-        tot = doc.totals or ESFTotals()
-        sig = doc.signature or ESFSignature()
-        items = sorted(doc.items, key=lambda it: (it.row_number or 0))
-        issue = doc.issue_date or (doc.created_at.date() if doc.created_at else None)
-        # 101 shows the ESF fiscal status (matches the official form), not the internal lifecycle
-        status_101 = "первоначальный (Принят)" if doc.status == DocumentStatus.PUBLISHED else "проект"
-
-        def party_dict(p):
-            return {
-                "inn": p.inn or "",
-                "name": p.name or "",
-                "branch_inn": p.branch_inn or "",
-                "branch_name": p.branch or "",
-                "address": p.address or "",
-                "tax_office_code": p.tax_office_code or "",
-                "tax_office_name": p.tax_office or "",
-                "bank": p.bank or "",
-                "account": p.account or "",
-            }
-
-        return {
-            "uuid": str(doc.uuid),
-            "appendix": "Приложение 3",
-            "sheet_no": 1,
-            "status": status_101,
-            "published": doc.status == DocumentStatus.PUBLISHED,
-            "qr_url": f"/qr/{doc.uuid}.png",
-            "number": doc.esf_number or "",
-            "issue_date": _date_box(issue),       # 103 boxes
-            "issue_date_disp": _date_disp(issue),  # 103 editable input
-            "supplier": party_dict(sup),
-            "buyer": party_dict(buy),
-            "supply": {
-                "date": _date_box(si.supply_date),
-                "date_disp": _date_disp(si.supply_date),
-                "type": si.supply_type or "",
-                "payment": si.payment_type or "",
-                "note": si.note or "",
-                "contract_no": si.contract_number or "",
-                "contract_date": _date_box(si.contract_date),
-                "contract_date_disp": _date_disp(si.contract_date),
-                "correction_no": si.correction_number or "",
-                "correction_date": _date_box(si.correction_date),
-                "correction_date_disp": _date_disp(si.correction_date),
-                "correction_reason": si.correction_reason or "",
-            },
-            "currency_code": si.currency_code or "",
-            "currency_rate": _rate(si.currency_rate),
-            "items": [{
-                "row": it.row_number,
-                "code": it.tnved_code or "",
-                "name": it.product_name or "",
-                "unit": it.unit or "",
-                "price": _qty5(it.price),
-                "qty": _qty5(it.quantity),
-                "amount": _money(it.amount),
-                "vat_rate": _rate(it.vat_rate),
-                "vat_amount": _money(it.vat_amount),
-                "nsp_rate": "0",                 # no column (view-only)
-                "nsp_amount": _money(it.nsp),
-                "total": _money(it.total),
-                "customs": it.customs_refs or "",
-            } for it in items],
-            "totals": {
-                "sheet_net": _money(tot.subtotal), "sheet_vat": _money(tot.vat_total),
-                "sheet_nsp": _money(tot.nsp_total), "sheet_total": _money(tot.grand_total),
-                "inv_net": _money(tot.subtotal), "inv_vat": _money(tot.vat_total),
-                "inv_nsp": _money(tot.nsp_total), "inv_total": _money(tot.grand_total),
-                "currency_net": _money(tot.currency_total), "currency_total": _money(tot.currency_total),
-            },
-            "signature": {"name": sig.director_name or ""},
-            "timestamp": (doc.published_at or doc.updated_at).strftime("%d/%m/%Y %H.%M.%S")
-                         if (doc.published_at or doc.updated_at) else "",
-        }
