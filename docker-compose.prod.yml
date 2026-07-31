@@ -48,6 +48,10 @@ services:
       # container). Never widen to '*' when the app port could be published (I-5).
       FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-127.0.0.1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}
       WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+      # Shared (DB-backed) rate-limit counters — required with WEB_CONCURRENCY > 1,
+      # otherwise each worker gets its own window. "postgres" is already the
+      # production default; the env is here so the choice is visible and overridable.
+      RATE_LIMIT_BACKEND: ${RATE_LIMIT_BACKEND:-postgres}
       TZ: ${TZ:-UTC}
     volumes:
       - esf_storage:/app/storage        # persists generated QR PNGs

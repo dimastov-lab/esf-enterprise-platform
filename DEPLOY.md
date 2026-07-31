@@ -13,6 +13,23 @@ $DC exec app python scripts/create_admin.py
 ./scripts/prod_smoke_test.sh
 ```
 
+## Secrets without env values (Docker secrets)
+`SECRET_KEY` and `DATABASE_URL` can be supplied as **files** instead of env
+values: set `SECRET_KEY_FILE` / `DATABASE_URL_FILE` to a path mounted into the
+container (e.g. `/run/secrets/esf_secret_key`). The file's content (trailing
+newline stripped) is used whenever the plain env var is absent. This keeps the
+values out of `docker inspect`, crash dumps and `/proc/…/environ` — preferable
+to `.env.production` on any shared or synced machine (see ACTION_REQUIRED.md §2):
+```yaml
+# docker-compose.prod.yml (app service)
+environment:
+  SECRET_KEY_FILE: /run/secrets/esf_secret_key
+secrets: [esf_secret_key]
+# top level:
+secrets:
+  esf_secret_key: { file: /opt/esf/secrets/secret_key }   # 0600, outside the repo
+```
+
 ## Application restart
 ```bash
 $DC restart app          # restart just the app

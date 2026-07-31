@@ -32,14 +32,14 @@
     all inline event handlers converted to listeners; nginx CSP dropped (app is sole authority)
 23. Public verification rate limiting (30 / 60 s / IP → 429, before any DB work,
     shared bucket for /esf/check-esf + /qr/*.png) — TD-013
+24. v1.1.5 — final hardening backlog: shared-store (Postgres) rate-limit counters for
+    multi-worker production; styled HTML error pages (404/403/409/429) with JSON kept
+    for API clients; lifespan migration (TD-015); dedicated test DB + injectable QR
+    storage (TD-016); Docker-secrets `*_FILE` config; debt-register reconciliation
+    (TD-001, TD-009)
 
-Status: MVP feature-complete (v1.1.4, RC1). Regression suite: **85 tests pass** (verified 2026-08-01).
-All technical audit findings closed; remaining work is owner-only P0 (see ACTION_REQUIRED.md).
-
-## Remaining — post-MVP backlog (see TECHNICAL_DEBT.md)
-- Production hardening: shared-store rate limiting, Docker WeasyPrint libs,
-  structured logging, styled error pages, production DB secrets.
-- Framework deprecation cleanup; dedicated test DB; cosmetic PDF parity.
+Status: MVP feature-complete (v1.1.5, RC1). Regression suite: **104 tests pass** (verified 2026-08-01).
+**The code-side backlog is empty.** Remaining work is owner-only P0 (see ACTION_REQUIRED.md).
 
 Out of scope (require external systems): ГНС/tax-authority integration,
 ЭЦП/digital signature, legal validity.

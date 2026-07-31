@@ -17,7 +17,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app.core import ratelimit
 from app.core.config import settings
-from app.core.observability import client_ip
+from app.core.observability import client_ip, error_response
 from app.core.security import get_csrf_token, get_current_user, require_csrf
 from app.db.session import get_db
 from app.models import DocumentStatus, User
@@ -116,7 +116,7 @@ def esf_duplicate(doc_uuid: str, request: Request,
     service = ESFService(db)
     doc = service.get_for_user(doc_uuid, user)
     if doc is None:
-        return HTMLResponse("Document not found", status_code=404)
+        return error_response(request, 404, "Документ не найден.")
     new = service.duplicate(doc, user)
     audit_service.record(db, audit_service.CREATE, user=user, document=new,
                          request=request, meta={"duplicated_from": str(doc.uuid)})
@@ -131,7 +131,7 @@ def esf_correct(doc_uuid: str, request: Request,
     service = ESFService(db)
     doc = service.get_for_user(doc_uuid, user)
     if doc is None:
-        return HTMLResponse("Document not found", status_code=404)
+        return error_response(request, 404, "Документ не найден.")
     new = service.create_correction(doc, user)
     audit_service.record(db, audit_service.CREATE, user=user, document=new,
                          request=request, meta={"corrects": str(doc.uuid)})
@@ -146,7 +146,7 @@ def esf_cancel(doc_uuid: str, request: Request,
     service = ESFService(db)
     doc = service.get_for_user(doc_uuid, user)
     if doc is None:
-        return HTMLResponse("Document not found", status_code=404)
+        return error_response(request, 404, "Документ не найден.")
     service.cancel(doc, user)
     audit_service.record(db, audit_service.DELETE, user=user, document=doc,
                          request=request, meta={"action": "cancel", "number": doc.esf_number})
@@ -214,8 +214,8 @@ def esf_public_check(documentUUID: str, request: Request, db: Session = Depends(
     enumeration and that write amplification (TD-013).
     """
     if ratelimit.throttle_public(client_ip(request)):
-        return HTMLResponse(
-            "Слишком много запросов. Повторите позже.", status_code=429,
+        return error_response(
+            request, 429, "Слишком много запросов. Повторите позже.",
             headers={"Retry-After": str(ratelimit.PUBLIC_WINDOW_SECONDS)},
         )
     service = ESFService(db)
@@ -240,7 +240,7 @@ def esf_edit(doc_uuid: str, request: Request,
     service = ESFService(db)
     doc = service.get_for_user(doc_uuid, user)
     if doc is None:
-        return HTMLResponse("Document not found", status_code=404)
+        return error_response(request, 404, "Документ не найден.")
     return _render_form(request, service, doc, user=user)
 
 
@@ -251,7 +251,7 @@ async def esf_save(doc_uuid: str, request: Request,
     service = ESFService(db)
     doc = service.get_for_user(doc_uuid, user)
     if doc is None:
-        return HTMLResponse("Document not found", status_code=404)
+        return error_response(request, 404, "Документ не найден.")
     service.save(doc, user, await request.form())
     return RedirectResponse(url=f"/esf/{doc_uuid}", status_code=303)
 
@@ -279,7 +279,7 @@ async def esf_validate(doc_uuid: str, request: Request,
     service = ESFService(db)
     doc = service.get_for_user(doc_uuid, user)
     if doc is None:
-        return HTMLResponse("Document not found", status_code=404)
+        return error_response(request, 404, "Документ не найден.")
     service.save(doc, user, await request.form())   # persist current edits first
     errors = service.validate(doc, user)
     audit_service.record(db, audit_service.VALIDATE, user=user, document=doc,
@@ -295,7 +295,7 @@ async def esf_publish(doc_uuid: str, request: Request,
     service = ESFService(db)
     doc = service.get_for_user(doc_uuid, user)
     if doc is None:
-        return HTMLResponse("Document not found", status_code=404)
+        return error_response(request, 404, "Документ не найден.")
     service.save(doc, user, await request.form())   # persist current edits first
     errors = service.publish(doc, user)
     if errors:
@@ -314,7 +314,7 @@ def esf_delete(doc_uuid: str, request: Request,
     service = ESFService(db)
     doc = service.get_for_user(doc_uuid, user)
     if doc is None:
-        return HTMLResponse("Document not found", status_code=404)
+        return error_response(request, 404, "Документ не найден.")
     meta = {"number": doc.esf_number, "uuid": str(doc.uuid)}
     service.delete(doc, user)  # raises 409 if the doc is not an editable draft
     # Record the audit only AFTER a successful delete, so a rejected delete (409 on
@@ -332,7 +332,7 @@ def esf_pdf(doc_uuid: str, request: Request,
     service = ESFService(db)
     doc = service.get_for_user(doc_uuid, user)
     if doc is None:
-        return HTMLResponse("Document not found", status_code=404)
+        return error_response(request, 404, "Документ не найден.")
     esf = service.serialize(doc) if service.is_editable(doc) \
         else service.serialize_published(doc)
     audit_service.record(db, audit_service.DOWNLOAD_PDF, user=user, document=doc, request=request)
@@ -353,14 +353,14 @@ def esf_qr(doc_uuid: str, request: Request, db: Session = Depends(get_db)):
     from app.services.qr_service import qr_png_bytes, qr_target
 
     if ratelimit.throttle_public(client_ip(request)):
-        return Response(
-            content="Too many requests", status_code=429,
+        return error_response(
+            request, 429, "Слишком много запросов. Повторите позже.",
             headers={"Retry-After": str(ratelimit.PUBLIC_WINDOW_SECONDS)},
         )
     service = ESFService(db)
     doc = service.get_public(doc_uuid)
     if doc is None or doc.status != DocumentStatus.PUBLISHED:
-        return HTMLResponse("Not found", status_code=404)
+        return error_response(request, 404, "Документ не найден.")
     png = qr_png_bytes(qr_target(str(doc.uuid)))
     return Response(
         content=png,
@@ -378,7 +378,7 @@ def esf_result(doc_uuid: str, request: Request,
     service = ESFService(db)
     doc = service.get_for_user(doc_uuid, user)
     if doc is None:
-        return HTMLResponse("Document not found", status_code=404)
+        return error_response(request, 404, "Документ не найден.")
     service.ensure_qr(doc)
     return templates.TemplateResponse(
         request,

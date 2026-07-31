@@ -6,6 +6,25 @@ database — there is no SQLite fallback.
 """
 import os
 
+
+def env_or_file(name: str, default: str) -> str:
+    """Read a setting from env, or from the file named by ``{name}_FILE``.
+
+    Docker/Compose secrets are mounted as files; ``SECRET_KEY_FILE=/run/secrets/x``
+    lets production supply secrets without putting the value itself into the
+    container environment (visible in `docker inspect`, crash dumps, /proc).
+    A plain env var, when set, wins — explicit beats indirection.
+    """
+    value = os.getenv(name)
+    if value is not None:
+        return value
+    path = os.getenv(f"{name}_FILE")
+    if path:
+        with open(path, encoding="utf-8") as fh:
+            return fh.read().strip()
+    return default
+
+
 DEFAULT_SECRET = "dev-only-secret-change-me"
 # Substrings that mark an unedited placeholder secret (from the .env examples).
 # Any SECRET_KEY containing one is rejected in production (fail-closed).
@@ -17,14 +36,16 @@ class Settings:
     PROJECT_NAME: str = "ESF Platform"
     VERSION: str = "1.0.0-rc1"
 
-    # PostgreSQL only. Driver is psycopg2.
-    DATABASE_URL: str = os.getenv(
+    # PostgreSQL only. Driver is psycopg2. DATABASE_URL_FILE (Docker secret) is
+    # honoured when the plain env var is absent.
+    DATABASE_URL: str = env_or_file(
         "DATABASE_URL",
         "postgresql+psycopg2://esf:esf@localhost:5432/esf",
     )
 
-    # Loaded from env in any real deployment. The default is for local dev only.
-    SECRET_KEY: str = os.getenv("SECRET_KEY", DEFAULT_SECRET)
+    # Loaded from env — or a mounted secret file via SECRET_KEY_FILE — in any
+    # real deployment. The default is for local dev only.
+    SECRET_KEY: str = env_or_file("SECRET_KEY", DEFAULT_SECRET)
 
     # Safe-by-default: only the explicit value "development" enables dev
     # conveniences (admin seed, /docs, dev preview, non-secure cookies). A missing
@@ -52,6 +73,11 @@ class Settings:
     SHOW_DEMO_WATERMARK: bool = os.getenv("SHOW_DEMO_WATERMARK", "true").strip().lower() not in (
         "0", "false", "no", "off",
     )
+
+    # Where published QR PNGs are persisted. Empty = the repo default
+    # backend/storage/qr. Tests point this at a tmp dir (TD-016) so publishing
+    # in the suite never litters the working tree.
+    QR_STORAGE_DIR: str = os.getenv("QR_STORAGE_DIR", "")
 
     # Connection pool + a hard per-statement timeout (ms) so no single query can
     # hang a worker. Tunable per deployment.

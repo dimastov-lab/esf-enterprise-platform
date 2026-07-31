@@ -12,22 +12,34 @@ import sys
 import time
 import uuid
 from contextvars import ContextVar
+from typing import Optional
 
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse
 
-_ERROR_HTML = (
+_ERROR_PAGE = (
     "<!doctype html><html lang='ru'><head><meta charset='utf-8'>"
     "<meta name='viewport' content='width=device-width, initial-scale=1'>"
-    "<title>Ошибка сервера</title></head>"
+    "<title>{title}</title></head>"
     "<body style='margin:0;min-height:100vh;display:flex;align-items:center;"
     "justify-content:center;background:#1f2937;color:#e5e7eb;"
     "font-family:-apple-system,\"Segoe UI\",Roboto,Arial,sans-serif'>"
     "<div style='text-align:center;padding:24px'>"
-    "<h1 style='font-size:22px;margin:0 0 8px'>Внутренняя ошибка сервера</h1>"
-    "<p style='color:#9ca3af;font-size:13px;margin:0'>Мы уже уведомлены. "
+    "<h1 style='font-size:22px;margin:0 0 8px'>{title}</h1>"
+    "<p style='color:#9ca3af;font-size:14px;margin:0 0 10px'>{message}</p>"
+    "<p style='color:#9ca3af;font-size:13px;margin:0'>"
     "Код запроса: <code>{rid}</code></p></div></body></html>"
 )
+
+_STATUS_TITLES = {
+    400: "Некорректный запрос",
+    403: "Доступ запрещён",
+    404: "Не найдено",
+    405: "Метод не поддерживается",
+    409: "Конфликт",
+    429: "Слишком много запросов",
+    500: "Внутренняя ошибка сервера",
+}
 
 from app.core.config import settings
 
@@ -36,6 +48,25 @@ _request_id: ContextVar[str] = ContextVar("request_id", default="-")
 
 def request_id() -> str:
     return _request_id.get()
+
+
+def error_response(request: Request, status_code: int, message: str,
+                   headers: "Optional[dict]" = None):
+    """One styled error surface for every non-500 error (TD: styled error pages).
+
+    Browsers (Accept: text/html) get the same dark shell as the 500 page, with a
+    per-status title and the request id; other clients keep machine-readable
+    JSON. `headers` pass through (e.g. Retry-After on 429).
+    """
+    rid = _request_id.get()
+    if "text/html" in request.headers.get("accept", ""):
+        title = _STATUS_TITLES.get(status_code, f"Ошибка {status_code}")
+        return HTMLResponse(
+            _ERROR_PAGE.format(title=title, message=message, rid=rid),
+            status_code=status_code, headers=headers,
+        )
+    return JSONResponse({"detail": message, "request_id": rid},
+                        status_code=status_code, headers=headers)
 
 
 def client_ip(request: Request) -> str:
@@ -118,10 +149,28 @@ def install(app) -> None:
         rid = _request_id.get()
         # Browser page loads get a styled HTML page; API/fetch clients keep JSON.
         if "text/html" in request.headers.get("accept", ""):
-            return HTMLResponse(_ERROR_HTML.format(rid=rid), status_code=500)
+            return HTMLResponse(
+                _ERROR_PAGE.format(title=_STATUS_TITLES[500],
+                                   message="Мы уже уведомлены.", rid=rid),
+                status_code=500,
+            )
         return JSONResponse(
             {"detail": "Внутренняя ошибка сервера.", "request_id": rid},
             status_code=500,
         )
 
     app.add_exception_handler(Exception, _on_unhandled)
+
+    async def _on_http_exception(request: Request, exc: Exception):
+        # Framework/route HTTPExceptions (404 unknown URL, 403 CSRF, 409 conflicts…)
+        # go through the same styled surface for browsers; non-browser clients keep
+        # FastAPI's JSON shape. exc.headers must survive (e.g. WWW-Authenticate).
+        detail = getattr(exc, "detail", None) or "Ошибка запроса."
+        return error_response(
+            request, getattr(exc, "status_code", 500), str(detail),
+            headers=getattr(exc, "headers", None),
+        )
+
+    from starlette.exceptions import HTTPException as StarletteHTTPException
+
+    app.add_exception_handler(StarletteHTTPException, _on_http_exception)
