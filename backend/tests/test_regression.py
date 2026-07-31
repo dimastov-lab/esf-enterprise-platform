@@ -1271,3 +1271,34 @@ def test_public_probe_404s_are_throttled(anon):
     for _ in range(ratelimit.PUBLIC_MAX_REQUESTS):
         assert anon.get("/esf/check-esf?documentUUID=no-such-doc").status_code == 404
     assert anon.get("/esf/check-esf?documentUUID=no-such-doc").status_code == 429
+
+
+# ---- login lockout semantics + styled error pages (v1.1.5) -----------
+# (Multi-worker sharing of the lockout/throttle counters is covered at the
+# store level in tests/test_hardening.py — PostgresStore, two instances.)
+def test_login_lockout_resets_after_successful_login(override_db, seed_users):
+    """Failures BEFORE a successful login must not count toward the next lockout
+    (pins the reset-on-success semantics across the shared-store swap)."""
+    c = TestClient(app)
+    for _ in range(4):
+        assert c.post("/login", data={"username": "t_admin", "password": "WRONG"}).status_code == 401
+    assert c.post("/login", data={"username": "t_admin", "password": "pw"}).status_code in (200, 303)
+    c.get("/logout")
+    for _ in range(4):
+        assert c.post("/login", data={"username": "t_admin", "password": "WRONG"}).status_code == 401
+
+
+def test_error_pages_are_styled_for_browsers(admin, anon):
+    # Router-level 404 (known route, missing document): browser gets the styled shell
+    r = admin.get("/esf/00000000-0000-0000-0000-000000000000",
+                  headers={"accept": "text/html"})
+    assert r.status_code == 404
+    assert "Код запроса" in r.text
+    # Framework-level 404 (unknown URL): still styled for browsers
+    r2 = anon.get("/no-such-page", headers={"accept": "text/html"})
+    assert r2.status_code == 404
+    assert "Код запроса" in r2.text
+    # Non-browser clients keep machine-readable JSON
+    r3 = anon.get("/no-such-page", headers={"accept": "application/json"})
+    assert r3.status_code == 404
+    assert r3.headers["content-type"].startswith("application/json")

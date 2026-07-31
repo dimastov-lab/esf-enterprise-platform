@@ -6,6 +6,7 @@ redirected to /login. Public verification (`/esf/check-esf`, `/qr/*.png`) stays 
 Schema is managed by Alembic migrations, not by create_all at startup.
 """
 import secrets
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Request
@@ -26,11 +27,29 @@ STATIC_DIR = BASE_DIR / "static"
 # Interactive API docs are useful in dev but are attack surface / info disclosure
 # in production — disable them there.
 _prod = settings.is_production
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    """Dev only: ensure roles + an initial admin (admin/admin123) so login works."""
+    if not settings.is_production:
+        from app.db.session import SessionLocal
+        from app.services.auth_service import AuthService
+
+        db = SessionLocal()
+        try:
+            AuthService(db).ensure_dev_admin()
+        finally:
+            db.close()
+    yield
+
+
 app = FastAPI(
     title=settings.PROJECT_NAME, version=settings.VERSION,
     docs_url=None if _prod else "/docs",
     redoc_url=None if _prod else "/redoc",
     openapi_url=None if _prod else "/openapi.json",
+    lifespan=_lifespan,
 )
 
 # structured logging + request id + clean 500 handler
@@ -132,18 +151,3 @@ if not settings.is_production:
     from app.routers.dev_preview import router as dev_preview_router
 
     app.include_router(dev_preview_router)
-
-
-@app.on_event("startup")
-def _dev_seed_admin():
-    """Dev only: ensure roles + an initial admin (admin/admin123) so login works."""
-    if settings.is_production:
-        return
-    from app.db.session import SessionLocal
-    from app.services.auth_service import AuthService
-
-    db = SessionLocal()
-    try:
-        AuthService(db).ensure_dev_admin()
-    finally:
-        db.close()

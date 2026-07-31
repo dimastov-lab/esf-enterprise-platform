@@ -72,4 +72,19 @@ open verification routes (`/esf/check-esf`, `/qr/*.png`), enforced before any DB
 UUID probing + audit-row write amplification). 85 tests pass. Remaining hardening is only the
 known in-process→shared-store limiter upgrade for multi-worker production.
 
+v1.1.5 — final hardening backlog closed (2026-08-01). (1) Shared-store rate limiting: the
+login lockout + public throttle counters moved from per-process dicts to the shared
+`rate_limits` table (migration c7d8e9f0a1b2, reversible; atomic upsert; backend selectable,
+production default = postgres) — limits now hold across uvicorn workers/replicas and survive
+restarts. (2) Styled error pages: one `error_response` surface — browsers get the dark-shell
+HTML page (per-status title + request id) for 404/403/409/429, API clients keep JSON, headers
+(Retry-After) pass through; all router-level bare-text 404/429 migrated. (3) TD-015: startup
+seed → lifespan handler (import clean under -W error::DeprecationWarning). (4) TD-016:
+TEST_DATABASE_URL for a dedicated suite DB + QR_STORAGE_DIR (publish tests write PNGs to a
+tmp dir, not the working tree). (5) Docker secrets: SECRET_KEY_FILE / DATABASE_URL_FILE.
+(6) Debt register reconciled: TD-001 and TD-009 were already done in fact, now marked.
+**104 tests pass.** Every code-side TECHNICAL_DEBT item is closed; remaining work is
+owner-only P0 (ACTION_REQUIRED.md: R-1 private materials, I-2 secret rotation, I-1 TLS cert)
+and deliberate out-of-scope (ГНС/ЭЦП/legal validity; style-src 'unsafe-inline').
+
 Awaiting direction.

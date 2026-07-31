@@ -1,5 +1,38 @@
 # CHANGELOG.md
 
+## v1.1.5 — final production-hardening backlog (2026-08-01)
+
+Closes every remaining code-side item in TECHNICAL_DEBT.md; what's left is owner-only
+(ACTION_REQUIRED.md) and deliberate out-of-scope. 104 tests pass.
+
+- **Shared-store rate limiting (TD-013/TD-019 remainder).** Production runs uvicorn with
+  `--workers 2`, so the in-process limiter windows were per-worker (limits ×N, lockout lost
+  on restart). `app/core/ratelimit.py` is now store-backed: `memory` (dev/tests) or
+  `postgres` — fixed-window counters in the new `rate_limits` table (migration
+  `c7d8e9f0a1b2`, reversible), incremented atomically via `INSERT … ON CONFLICT … RETURNING`,
+  shared across workers/replicas. Backend defaults by environment (production → postgres);
+  `RATE_LIMIT_BACKEND` overrides. Router call sites unchanged. The login key's `\x00`
+  separator is mapped to `\x1f` (Postgres rejects NUL in strings).
+- **Styled error pages.** One styled error surface (`observability.error_response`) for
+  404/403/409/429/…: browsers (Accept: text/html) get the same dark shell as the 500 page
+  with per-status titles and the request id; API clients keep machine-readable JSON;
+  headers (e.g. `Retry-After`) pass through. All router-level bare-text 404/429 responses
+  migrated; framework-level HTTPExceptions (unknown URL, CSRF 403) go through the same
+  handler.
+- **TD-015: lifespan.** Dev-admin seed moved from deprecated `@app.on_event("startup")`
+  to a FastAPI lifespan handler; `TemplateResponse(request, …)` was already migrated —
+  import is now clean under `-W error::DeprecationWarning`.
+- **TD-016: test isolation.** `TEST_DATABASE_URL` (when set) replaces the DB for the whole
+  suite; QR PNGs written by publish tests go to a throwaway tmp dir via the new
+  `QR_STORAGE_DIR` setting instead of the working tree.
+- **Docker secrets.** `SECRET_KEY_FILE` / `DATABASE_URL_FILE` are honoured when the plain
+  env var is absent (content read from the mounted secret file) — keeps production secrets
+  out of container env / `docker inspect` (see DEPLOY.md).
+- **Debt-register reconciliation.** TD-001 (quarantined legacy code) was already deleted in
+  the 2026-07-28 audit cleanup and TD-009's Docker/Linux part was done (image installs
+  pango/cairo; the macOS DYLD hack is dev-only and platform-gated) — both now marked
+  resolved.
+
 ## Public verification rate limiting — TD-013 (2026-08-01)
 
 Closes the last substantive open TECHNICAL_DEBT hardening item. The open, unauthenticated

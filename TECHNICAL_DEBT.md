@@ -12,7 +12,8 @@
   referenced only there.
 - **Fix Plan:** Delete the quarantine directory once Sprints 4R–8R reimplement the needed
   behavior on the new schema. Until then, do not import from it.
-- **Status:** Open (intentional, tracked)
+- **Status:** ✅ RESOLVED (audit cleanup 2026-07-28) — `backend/legacy/` deleted; entry
+  reconciled in v1.1.5.
 
 ### TD-002 — Snapshot immutability not yet enforced at write time
 - **Severity:** Medium
@@ -115,8 +116,10 @@
 - **Risk:** Hardcoded Homebrew path is dev-specific; pre-publish data could be rendered as if final.
 - **Fix Plan:** In Docker/Linux install the libs via the image (no DYLD hack needed); switch the
   PDF source to the snapshot for PUBLISHED documents in the snapshot sprint.
-- **Status:** Partially resolved (Sprint 8R) — PUBLISHED PDFs now render from the snapshot.
-  Remaining: the macOS-only DYLD/Homebrew path hack (replace with proper libs in Docker/Linux).
+- **Status:** ✅ RESOLVED — PUBLISHED PDFs render from the snapshot (Sprint 8R); the Docker
+  image installs pango/cairo/gdk-pixbuf natively (no DYLD hack in Linux). The Homebrew path
+  injection remains as a deliberate macOS-dev-only convenience, gated on
+  `sys.platform == "darwin"` + directory existence (reconciled in v1.1.5).
 
 ### TD-010 — Public verification not yet publish-gated; QR not embedded in the document
 - **Severity:** Medium
@@ -165,9 +168,9 @@
 - **Fix Plan:** Add rate limiting / caching in production hardening.
 - **Status:** ✅ RESOLVED (v1.1.4) — sliding-window per-IP throttle (30 req / 60 s) shared by
   `/esf/check-esf` and `/qr/*.png`, applied BEFORE any DB work (caps UUID enumeration and the
-  audit-row write amplification) → 429 + `Retry-After`. Same in-process caveat as the login
-  limiter: multi-worker production still needs a shared store (tracked below as the known
-  remaining hardening item).
+  audit-row write amplification) → 429 + `Retry-After`. The in-process caveat was closed in
+  v1.1.5: counters live in the shared `rate_limits` table (postgres backend, production
+  default), so the limit holds across uvicorn workers and replicas.
 
 ### TD-014 — No CSRF protection on state-changing forms
 - **Severity:** Medium
@@ -189,7 +192,9 @@
 - **Risk:** Will break on a future Starlette/FastAPI major.
 - **Fix Plan:** Migrate startup seed to a `lifespan` handler; swap to
   `TemplateResponse(request, name, context)` signature.
-- **Status:** Open (low priority; production hardening)
+- **Status:** ✅ RESOLVED (v1.1.5) — dev-admin seed moved to a FastAPI lifespan handler;
+  the `TemplateResponse` signature was already migrated with the starlette 1.3.1 pin.
+  `import app.main` is clean under `-W error::DeprecationWarning`.
 
 ### TD-016 — Tests share the dev database; publish writes QR files
 - **Severity:** Low
@@ -198,7 +203,9 @@
   dev database and the QR publish path writes PNGs to `storage/qr` (filesystem, not rolled back).
 - **Risk:** Orphan QR PNGs accumulate; no dedicated test DB.
 - **Fix Plan:** Use a dedicated test database in CI; make QR generation injectable/mockable in tests.
-- **Status:** Open (low priority)
+- **Status:** ✅ RESOLVED (v1.1.5) — `TEST_DATABASE_URL`, when set, replaces the database for
+  the whole suite (CI can point it at a dedicated DB); publish-test QR PNGs go to a throwaway
+  tmp dir via the `QR_STORAGE_DIR` setting instead of the working tree.
 
 ### TD-017 — Audit logging not implemented (HIGH)
 - **Severity:** High
@@ -228,7 +235,8 @@
 - **Risk:** Credential brute-force.
 - **Fix Plan:** Add rate-limiting/lockout with the public-route limiter (TD-013).
 - **Status:** ✅ RESOLVED (v1.1) — in-process sliding-window lockout (5/5min/IP) → 429.
-  NOTE: per-process only; use a shared store (Redis) for multi-worker.
+  The per-process caveat was closed in v1.1.5: lockout counters live in the shared
+  `rate_limits` table (postgres backend, production default) — no Redis needed.
 
 ### TD-020 — Counterparty BIK not autofilled into a field
 - **Severity:** Low

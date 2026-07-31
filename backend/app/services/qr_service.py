@@ -12,7 +12,12 @@ import qrcode
 from app.core.config import settings
 
 # backend/storage/qr  (app/services/qr_service.py -> app -> backend)
-STORAGE_QR_DIR = Path(__file__).resolve().parent.parent.parent / "storage" / "qr"
+_DEFAULT_QR_DIR = Path(__file__).resolve().parent.parent.parent / "storage" / "qr"
+
+
+def _storage_dir() -> Path:
+    """QR persistence dir; QR_STORAGE_DIR overrides the repo default (TD-016)."""
+    return Path(settings.QR_STORAGE_DIR) if settings.QR_STORAGE_DIR else _DEFAULT_QR_DIR
 
 
 def public_check_path(doc_uuid: str) -> str:
@@ -36,8 +41,9 @@ def qr_png_bytes(data: str) -> bytes:
 
 
 def write_qr_file(doc_uuid: str) -> str:
-    """Generate and persist storage/qr/{uuid}.png; return its path."""
-    STORAGE_QR_DIR.mkdir(parents=True, exist_ok=True)
-    path = STORAGE_QR_DIR / f"{doc_uuid}.png"
+    """Generate and persist {storage_dir}/{uuid}.png; return its path."""
+    storage = _storage_dir()
+    storage.mkdir(parents=True, exist_ok=True)
+    path = storage / f"{doc_uuid}.png"
     path.write_bytes(qr_png_bytes(qr_target(doc_uuid)))
     return str(path)

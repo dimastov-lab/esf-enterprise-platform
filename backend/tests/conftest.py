@@ -7,8 +7,16 @@ end, so the regression suite leaves the dev database unchanged and is repeatable
 # the development profile (dev-admin seed, non-secure cookies). Set it BEFORE any
 # app import so app.core.config picks it up.
 import os
+import tempfile
 
 os.environ.setdefault("ENVIRONMENT", "development")
+
+# TD-016: a dedicated test database, when provided (CI), replaces the dev DB for
+# the whole suite; and QR PNGs written by publish tests go to a throwaway tmp dir
+# instead of the working tree's storage/qr. Both must be set before app import.
+if os.environ.get("TEST_DATABASE_URL"):
+    os.environ["DATABASE_URL"] = os.environ["TEST_DATABASE_URL"]
+os.environ.setdefault("QR_STORAGE_DIR", tempfile.mkdtemp(prefix="esf-test-qr-"))
 
 import re  # noqa: E402
 
