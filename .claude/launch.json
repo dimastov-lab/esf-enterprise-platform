@@ -4,7 +4,7 @@
     {
       "name": "esf-backend",
       "runtimeExecutable": "sh",
-      "runtimeArgs": ["-c", "cd /Users/dmitrijcernikov/Desktop/ESF-Enterprise-Clean-Starter/backend && ENVIRONMENT=development exec /Users/dmitrijcernikov/.esf-venv/bin/uvicorn app.main:app --port 8011 --loop asyncio --http h11"],
+      "runtimeArgs": ["-c", "cd /Users/dmitrijcernikov/Desktop/ESF-Enterprise-Clean-Starter/backend && ENVIRONMENT=development DATABASE_URL=postgresql+psycopg2://esf:esf@localhost:5432/esf exec /Users/dmitrijcernikov/Desktop/ESF-Enterprise-Clean-Starter/backend/.venv/bin/uvicorn app.main:app --port 8011 --loop asyncio --http h11"],
       "port": 8011
     }
   ]
