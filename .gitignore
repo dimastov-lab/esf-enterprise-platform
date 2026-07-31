@@ -51,3 +51,7 @@ backend/storage/qr/*
 
 # Review / scratch artifacts (626MB of audio, video, captured refs — not source)
 /_review/
+
+# uv is not this repo's package manager (hash-pinned requirements.lock is canonical);
+# a stray `uv run` in backend/ generates this — never commit it
+uv.lock
