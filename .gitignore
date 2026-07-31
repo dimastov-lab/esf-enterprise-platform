@@ -51,3 +51,7 @@ backend/storage/qr/*
 
 # Review / scratch artifacts (626MB of audio, video, captured refs — not source)
 /_review/
+
+# uv tooling artifact: dependency truth is backend/requirements.lock (hash-pinned);
+# an empty uv.lock regenerates whenever `uv run` is used in backend/
+backend/uv.lock
