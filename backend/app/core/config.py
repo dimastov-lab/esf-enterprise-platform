@@ -6,6 +6,7 @@ database — there is no SQLite fallback.
 """
 import os
 
+
 def env_or_file(name: str, default: str) -> str:
     """Read a setting from env, or from the file named by ``{name}_FILE``.
 
