@@ -1247,3 +1247,27 @@ def test_demo_watermark_rendered(admin, anon):
     for html in (admin.get(f"/esf/{uuid}").text,
                  anon.get(f"/esf/check-esf?documentUUID={uuid}").text):
         assert 'class="demo-watermark"' in html and "НЕ ОФИЦИАЛЬНЫЙ ДОКУМЕНТ" in html
+
+
+# ---- public verification rate limiting (TD-013) ----------------------
+def test_public_check_rate_limit(admin, anon):
+    from app.core import ratelimit
+    uuid = new_draft(admin)
+    save(admin, uuid, valid_pairs())
+    admin.post(f"/esf/{uuid}/publish", content=urlencode(valid_pairs()), headers=FORM)
+    for _ in range(ratelimit.PUBLIC_MAX_REQUESTS):
+        assert anon.get(f"/esf/check-esf?documentUUID={uuid}").status_code == 200
+    r = anon.get(f"/esf/check-esf?documentUUID={uuid}")
+    assert r.status_code == 429
+    assert r.headers.get("Retry-After") == str(ratelimit.PUBLIC_WINDOW_SECONDS)
+    # The QR endpoint shares the same public bucket
+    assert anon.get(f"/qr/{uuid}.png").status_code == 429
+
+
+def test_public_probe_404s_are_throttled(anon):
+    """UUID probing must hit the limiter before the DB lookup: unknown ids
+    consume the same budget and stop with 429, not unlimited 404s."""
+    from app.core import ratelimit
+    for _ in range(ratelimit.PUBLIC_MAX_REQUESTS):
+        assert anon.get("/esf/check-esf?documentUUID=no-such-doc").status_code == 404
+    assert anon.get("/esf/check-esf?documentUUID=no-such-doc").status_code == 429

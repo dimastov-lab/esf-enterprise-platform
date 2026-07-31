@@ -30,8 +30,10 @@
     Dockerfile `--require-hashes`
 22. CSP hardening (AUDIT_2026-07-28 I-4): `script-src` nonce instead of `'unsafe-inline'`;
     all inline event handlers converted to listeners; nginx CSP dropped (app is sole authority)
+23. Public verification rate limiting (30 / 60 s / IP → 429, before any DB work,
+    shared bucket for /esf/check-esf + /qr/*.png) — TD-013
 
-Status: MVP feature-complete (v1.1.3, RC1). Regression suite: **83 tests pass** (verified 2026-07-29).
+Status: MVP feature-complete (v1.1.4, RC1). Regression suite: **85 tests pass** (verified 2026-08-01).
 All technical audit findings closed; remaining work is owner-only P0 (see ACTION_REQUIRED.md).
 
 ## Remaining — post-MVP backlog (see TECHNICAL_DEBT.md)
