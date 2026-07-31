@@ -1,5 +1,22 @@
 # CHANGELOG.md
 
+## v1.1.6 — housekeeping: version truth-up, TD-004/TD-020 closed (2026-08-01)
+
+Zero behavior change for real users; the debt register reaches zero open items.
+
+- **Version metadata truth-up.** `config.VERSION` had been frozen at `1.0.0-rc1` since
+  Sprint 13R while the platform moved to v1.1.x; now `1.1.6` (also the prod image tag and
+  the CLAUDE.md status block, which still said "Sprint 12 partial").
+- **TD-004 executed.** `/dev/esf-preview` + `app/dev_sample.py` deleted — the form has
+  rendered real persisted data since Sprint 5R; the hardcoded-sample preview route was a
+  leftover with a standing removal plan. README updated.
+- **TD-020 closed as by-design.** The official STI-007 form has no separate BIK box
+  (field 207 is one text field, BIK written inside); the counterparty directory still
+  stores and searches `bik`.
+- **Test-count history reconciled** (gap flagged in PROJECT_STATE on 2026-07-26): the
+  undocumented 23→55 growth maps to the July audit-remediation commits; full chain now
+  recorded in PROJECT_STATE.
+
 ## v1.1.5 — final production-hardening backlog (2026-08-01)
 
 Closes every remaining code-side item in TECHNICAL_DEBT.md; what's left is owner-only

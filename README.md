@@ -104,10 +104,11 @@ Validate a running stack with `scripts/prod_smoke_test.sh`. See `docs/history/PR
 4. Serve over HTTPS behind a reverse proxy (the session cookie is `Secure` only when
    `ENVIRONMENT=production`). Run with a process manager, e.g.
    `uvicorn app.main:app --host 0.0.0.0 --port 8000` (add workers as needed).
-5. In production the dev admin is NOT seeded and `/dev/esf-preview` is NOT mounted — create the
-   first admin out-of-band (e.g. a one-off `AuthService(...).create_user(...)` script).
+5. In production the dev admin is NOT seeded — create the first admin out-of-band
+   (e.g. a one-off `AuthService(...).create_user(...)` script or `scripts/create_admin.py`).
 
-See `docs/history/RELEASE_REPORT.md` for the production-hardening backlog (CSRF, rate limiting, audit log).
+The production-hardening backlog (CSRF, rate limiting, audit log, shared-store limiter) is
+complete as of v1.1.5 — see CHANGELOG.md; historical reports live in `docs/history/`.
 
 ## Backup & Restore
 

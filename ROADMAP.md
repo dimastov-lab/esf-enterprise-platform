@@ -38,8 +38,12 @@
     storage (TD-016); Docker-secrets `*_FILE` config; debt-register reconciliation
     (TD-001, TD-009)
 
-Status: MVP feature-complete (v1.1.5, RC1). Regression suite: **104 tests pass** (verified 2026-08-01).
-**The code-side backlog is empty.** Remaining work is owner-only P0 (see ACTION_REQUIRED.md).
+25. v1.1.6 — housekeeping: version metadata truth-up (config.VERSION 1.0.0-rc1 → 1.1.6,
+    prod image tag, CLAUDE.md status), TD-004 executed (dev-preview route + sample data
+    deleted), TD-020 closed by-design, test-count history reconciled in PROJECT_STATE
+
+Status: MVP feature-complete (v1.1.6). Regression suite: **104 tests pass** (verified 2026-08-01).
+**The debt register has zero open items.** Remaining work is owner-only P0 (see ACTION_REQUIRED.md).
 
 Out of scope (require external systems): ГНС/tax-authority integration,
 ЭЦП/digital signature, legal validity.
