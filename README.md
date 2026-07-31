@@ -27,6 +27,8 @@ Layered, per `CODING_STANDARDS.md`: **Controller (router) → Service → Reposi
 The document uses **DejaVu Sans** — the exact font embedded in the reference «Копия 6.pdf» —
 bundled at `backend/app/static/fonts/` and used for HTML, the public page, and the PDF, so the
 output matches the official form glyph-for-glyph.
+DejaVu fonts are distributed under the Bitstream Vera license (DejaVu changes are in the
+public domain) — see `backend/app/static/fonts/LICENSE`.
 
 ## Prerequisites
 
