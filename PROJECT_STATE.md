@@ -67,4 +67,9 @@ the browser end-to-end (login→dashboard→editor→publish→view) with zero C
 §7. Remaining: only owner-only P0 tasks (R-1/I-2/I-1, see `ACTION_REQUIRED.md`) and the
 deliberately-out-of-scope items (style-src unsafe-inline; S-0 legal review).
 
+v1.1.4 — TD-013 resolved: per-IP sliding-window throttle (30/60s → 429 + Retry-After) on the
+open verification routes (`/esf/check-esf`, `/qr/*.png`), enforced before any DB work (caps
+UUID probing + audit-row write amplification). 85 tests pass. Remaining hardening is only the
+known in-process→shared-store limiter upgrade for multi-worker production.
+
 Awaiting direction.

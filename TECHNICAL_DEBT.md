@@ -163,7 +163,11 @@
   are unauthenticated.
 - **Risk:** Potential scraping/abuse at scale.
 - **Fix Plan:** Add rate limiting / caching in production hardening.
-- **Status:** Open (production hardening)
+- **Status:** ✅ RESOLVED (v1.1.4) — sliding-window per-IP throttle (30 req / 60 s) shared by
+  `/esf/check-esf` and `/qr/*.png`, applied BEFORE any DB work (caps UUID enumeration and the
+  audit-row write amplification) → 429 + `Retry-After`. Same in-process caveat as the login
+  limiter: multi-worker production still needs a shared store (tracked below as the known
+  remaining hardening item).
 
 ### TD-014 — No CSRF protection on state-changing forms
 - **Severity:** Medium

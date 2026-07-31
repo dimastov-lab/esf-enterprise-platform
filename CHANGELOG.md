@@ -1,5 +1,16 @@
 # CHANGELOG.md
 
+## Public verification rate limiting — TD-013 (2026-08-01)
+
+Closes the last substantive open TECHNICAL_DEBT hardening item. The open, unauthenticated
+routes `/esf/check-esf` and `/qr/{uuid}.png` now share a per-IP sliding-window throttle
+(30 requests / 60 s → 429 with `Retry-After`), enforced BEFORE any DB work so it caps both
+UUID enumeration probing (404s consume the same budget) and the audit-row write done on every
+allowed public view. Implementation extends `app/core/ratelimit.py` with a second, independent
+bucket alongside the login lockout (same honest per-process caveat: multi-worker production
+needs a shared store — that remains the known post-MVP item). TDD: two new regression tests
+(burst → 429 + Retry-After + shared QR bucket; 404-probe throttling); 85 tests pass.
+
 ## CSP: script nonce instead of 'unsafe-inline' (audit I-4) (2026-07-29)
 
 Removes `'unsafe-inline'` from the Content-Security-Policy `script-src`, closing the

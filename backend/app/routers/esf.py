@@ -15,7 +15,9 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 
+from app.core import ratelimit
 from app.core.config import settings
+from app.core.observability import client_ip
 from app.core.security import get_csrf_token, get_current_user, require_csrf
 from app.db.session import get_db
 from app.models import DocumentStatus, User
@@ -207,7 +209,15 @@ def esf_public_check(documentUUID: str, request: Request, db: Session = Depends(
 
     Only PUBLISHED documents are publicly verifiable. Declared before
     `/esf/{doc_uuid}` so the literal path wins over the catch-all.
+    Throttled per IP BEFORE any DB work: the route is unauthenticated, and every
+    allowed view also writes an audit row — the limiter caps both UUID
+    enumeration and that write amplification (TD-013).
     """
+    if ratelimit.throttle_public(client_ip(request)):
+        return HTMLResponse(
+            "Слишком много запросов. Повторите позже.", status_code=429,
+            headers={"Retry-After": str(ratelimit.PUBLIC_WINDOW_SECONDS)},
+        )
     service = ESFService(db)
     doc = service.get_public(documentUUID)
     if doc is None or doc.status != DocumentStatus.PUBLISHED:
@@ -334,13 +344,19 @@ def esf_pdf(doc_uuid: str, request: Request,
 
 
 @router.get("/qr/{doc_uuid}.png")
-def esf_qr(doc_uuid: str, db: Session = Depends(get_db)):
+def esf_qr(doc_uuid: str, request: Request, db: Session = Depends(get_db)):
     """QR PNG (open, read-only). Encodes the public check URL only — no document
     data. Restricted to PUBLISHED documents (matching /esf/check-esf) and generated
     in memory: an unauthenticated GET must never write to disk or the DB. The QR is
-    persisted at publish time / on the owner's result page."""
+    persisted at publish time / on the owner's result page.
+    Shares the public per-IP throttle bucket with /esf/check-esf (TD-013)."""
     from app.services.qr_service import qr_png_bytes, qr_target
 
+    if ratelimit.throttle_public(client_ip(request)):
+        return Response(
+            content="Too many requests", status_code=429,
+            headers={"Retry-After": str(ratelimit.PUBLIC_WINDOW_SECONDS)},
+        )
     service = ESFService(db)
     doc = service.get_public(doc_uuid)
     if doc is None or doc.status != DocumentStatus.PUBLISHED:
