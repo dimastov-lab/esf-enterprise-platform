@@ -1,4 +1,4 @@
-# ESF Enterprise Platform — Release Candidate 1
+# ESF Enterprise Platform
 
 A platform for issuing, storing, and publicly verifying **Kyrgyz electronic VAT invoices
 (ЭСФ — СЧЁТ-ФАКТУРА, form STI-007 / Приложение 3)**. The HTML document is the visual source of
@@ -7,7 +7,8 @@ immutable snapshot with a QR-linked public verification page.
 
 ## Status
 
-MVP feature-complete (Release Candidate 1). Lifecycle:
+**v1.1.6** — MVP feature-complete; the production-hardening backlog is closed and the
+technical-debt register has zero open code items (see CHANGELOG.md). Lifecycle:
 **DRAFT → VALIDATED → SNAPSHOT_CREATED → PUBLISHED** (+ CANCELLED).
 
 ## Architecture
@@ -78,7 +79,8 @@ In development, a dev admin is auto-seeded: **admin / admin123**. Optional demo 
 cd backend
 pip install -r requirements-dev.txt
 DATABASE_URL=postgresql+psycopg2://esf:esf@localhost:5432/esf python -m pytest tests/ -q
-# 82 passed — transaction-isolated regression suite
+# 104 passed — transaction-isolated regression suite
+# Optional: point the suite at a dedicated DB with TEST_DATABASE_URL
 ```
 
 ## Configuration
@@ -150,8 +152,9 @@ Visual spec: `docs/UI_REFERENCE.md`; analysis: `docs/STEP0_ARCHITECTURE_REVIEW.m
 
 ## Known limitations (see `TECHNICAL_DEBT.md`)
 
-Form fidelity is glyph-exact (DejaVu Sans, matched to the reference). Remaining items are
-operational, not visual: general-route rate limiting (TD-013); macOS dyld hack for WeasyPrint
-(TD-009, n/a on Linux/Docker); legacy `dev` user row retained (TD-006); in-process login rate
-limiter (use a shared store for multi-worker, TD-019). Out of scope (require external systems):
+Form fidelity is glyph-exact (DejaVu Sans, matched to the reference). The technical-debt
+register has **zero open code items** as of v1.1.6 — login + public-route rate limiting use a
+shared Postgres-backed store (multi-worker-safe), and the macOS dyld path injection is a
+dev-only convenience (n/a on Linux/Docker). The legacy `dev` user row is retained by design
+(owns early documents; cannot authenticate). Out of scope (require external systems):
 tax-authority (ГНС) integration, digital signature (ЭЦП), and the resulting legal validity.
