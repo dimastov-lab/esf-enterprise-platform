@@ -145,9 +145,3 @@ app.include_router(auth_router)
 app.include_router(admin_router)
 app.include_router(api_router)
 app.include_router(esf_router)
-
-# Development-only preview. Never mounted in production.
-if not settings.is_production:
-    from app.routers.dev_preview import router as dev_preview_router
-
-    app.include_router(dev_preview_router)

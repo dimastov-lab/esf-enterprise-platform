@@ -83,7 +83,9 @@ After each sprint:
 ## CURRENT STATUS
 
 The original 12-sprint MVP plan is **COMPLETE**. The platform is at
-**v1.1.3 — Release Candidate 1 (1.0.0-rc1)**: MVP feature-complete and verified.
+**v1.1.6**: MVP feature-complete, the entire production-hardening backlog is closed
+(shared-store rate limiting, CSRF, audit log, CSP nonce, structured logging, styled
+error pages, Docker secrets), and the technical-debt register has no open code items.
 
 **Source of truth for current state is PROJECT_STATE.md** — read it before planning.
 This section is a high-level map, not a fresh to-do list.
@@ -101,14 +103,16 @@ Initial build (done):
 - ✅ Sprint 9 — Auth + RBAC
 - ✅ Sprint 10 — Audit Log
 - ✅ Sprint 11 — Basic UI
-- ⏳ Sprint 12 — Production hardening (partial — see TECHNICAL_DEBT.md)
+- ✅ Sprint 12 — Production hardening (completed across v1.1.x, finished in v1.1.5)
 
 Post-MVP delivered (v1.1.x): audit logging + admin viewer (/admin/audit), CSRF
-protection, login rate limiting, persisted previously view-only fields, exact
-bundled DejaVu Sans font + official QR format (pixel-faithful clone).
+protection, login + public-route rate limiting (shared Postgres-backed store),
+persisted previously view-only fields, exact bundled DejaVu Sans font + official
+QR format (pixel-faithful clone), CSP script nonce, styled error pages,
+lifespan migration, dedicated-test-DB support, Docker-secrets `*_FILE` config.
 
-Remaining work is **post-MVP hardening only** — see TECHNICAL_DEBT.md (shared-store
-rate limit, structured logging, styled error pages, production DB secrets).
+**The code-side backlog is empty.** Remaining work is owner-only
+(ACTION_REQUIRED.md: private materials relocation, secret rotation, TLS cert).
 Out of scope (require external systems): ГНС/tax-authority integration,
 ЭЦП/digital signature, legal validity.
 

@@ -50,7 +50,9 @@
   document in non-prod environments.
 - **Fix Plan:** In Sprint 5R, wire `form.html` to real persisted ESF data; remove or repoint
   the dev route and delete `dev_sample.py` (or convert it into a test fixture).
-- **Status:** Open (intentional, deferred to Sprint 5R)
+- **Status:** ✅ RESOLVED (v1.1.6) — `form.html` has rendered real persisted data since
+  Sprint 5R; the leftover `/dev/esf-preview` route and `dev_sample.py` are deleted
+  (the fix plan's "remove" branch). Template preview = any real document.
 
 ### TD-005 — Visual deltas vs. official PDF (to refine in Sprint 5R/7)
 - **Severity:** Low (cosmetic)
@@ -246,7 +248,10 @@
   field. `bik` is still saved/searched.
 - **Risk:** Minor — BIK is conventionally written inside the bank text.
 - **Fix Plan:** If a dedicated BIK field is added to the document model, include it in autofill.
-- **Status:** Open (low)
+- **Status:** ✅ CLOSED as by-design (v1.1.6) — the official STI-007 form has no separate BIK
+  box: field 207 is «Наименование банка и код (БИК)», a single text field, and the BIK is
+  conventionally written inside it. The directory keeps storing/searching `bik`; adding a
+  document-model column would diverge from the form. Reopen only if the official form changes.
 
 ## Rule
 

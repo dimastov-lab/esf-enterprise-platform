@@ -87,4 +87,21 @@ tmp dir, not the working tree). (5) Docker secrets: SECRET_KEY_FILE / DATABASE_U
 owner-only P0 (ACTION_REQUIRED.md: R-1 private materials, I-2 secret rotation, I-1 TLS cert)
 and deliberate out-of-scope (ГНС/ЭЦП/legal validity; style-src 'unsafe-inline').
 
+v1.1.6 — housekeeping (2026-08-01). (1) Release metadata truth-up: `config.VERSION`
+1.0.0-rc1 → 1.1.6, prod image tag `esf-platform:1.1.6`, CLAUDE.md status block updated
+(Sprint 12 marked complete). (2) TD-004 executed: `/dev/esf-preview` + `dev_sample.py`
+deleted (form renders real data since Sprint 5R; the route was a leftover). (3) TD-020
+closed as by-design (official form has no separate BIK box — field 207 is a single text
+field). (4) Test-count history reconciled — see below. **The debt register now has zero
+open items.**
+
+Test-count history reconciliation (closes the gap flagged 2026-07-26): the repo's history
+starts at the v1.1.3 baseline (`d3c325b`, 23 tests). The undocumented 23→55 growth happened
+in the July security-audit remediation commits, each of which added regression tests without
+a state entry: `8fee0b7` (XSS/owner-scoping), `9a09439` (H4/M infra), `94f2217` (H2
+concurrency-safe publish), `4205560` (H3 DB-level immutability), `8bad365` (M10 validation),
+`18ac7df` (reliability block), `8899457` (audit #2 adversarial blocks 2–4), `9c78d8f`
+(authenticity/watermark). From 55 the documented chain resumes: 82 (A-1..A-7 remediation)
+→ 83 (I-4 CSP) → 85 (v1.1.4 TD-013) → 104 (v1.1.5 hardening).
+
 Awaiting direction.
