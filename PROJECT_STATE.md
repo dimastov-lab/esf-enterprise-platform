@@ -104,4 +104,9 @@ concurrency-safe publish), `4205560` (H3 DB-level immutability), `8bad365` (M10 
 (authenticity/watermark). From 55 the documented chain resumes: 82 (A-1..A-7 remediation)
 → 83 (I-4 CSP) → 85 (v1.1.4 TD-013) → 104 (v1.1.5 hardening).
 
+Owner-only P0 verification 2026-08-03: **R-1 done** (no private materials in the repo tree;
+relocated to ~/Desktop/ESF-Private-Materials), **I-2 partially done** (.env.production absent
+from repo and Desktop root; value rotation still pending), **I-1 open** (needs the real
+server/domain). See ACTION_REQUIRED.md «Статус».
+
 Awaiting direction.
