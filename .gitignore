@@ -27,11 +27,12 @@ logs/*
 !storage/.gitkeep
 !logs/.gitkeep
 
-# Backend runtime output — generated PDFs / QR codes (keep folders, ignore contents)
+# Backend runtime output — generated PDFs / QR codes are never committed.
+# No committed .gitkeep placeholder is needed: storage/qr is (re)created at
+# runtime by qr_service (mkdir(parents=True, exist_ok=True)) and by the Dockerfile,
+# and PDFs are rendered in-memory and streamed, never persisted to storage/pdf.
 backend/storage/pdf/*
 backend/storage/qr/*
-!backend/storage/pdf/.gitkeep
-!backend/storage/qr/.gitkeep
 
 # Personal legal / financial material — NOT part of the platform, never commit
 /ПАКЕТ_ДОКАЗАТЕЛЬСТВ*/
