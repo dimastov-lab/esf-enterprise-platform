@@ -46,6 +46,9 @@ $CURL -c "$JAR" -b "$JAR" -o /dev/null -X POST "$BASE_URL/login" \
 code=$($CURL -c "$JAR" -b "$JAR" -o /tmp/esf_dash.tmp -w '%{http_code}' "$BASE_URL/dashboard")
 chk "$code" 200 "GET /dashboard (authenticated)"
 CSRF=$(grep -o 'name="csrf_token" value="[^"]*"' /tmp/esf_dash.tmp | head -1 | sed 's/.*value="//; s/"//')
+# The per-row csrf <input>s above only render when the dashboard has ≥1 document, so on
+# a fresh deployment fall back to the always-present JS token (var CSRF = "...").
+[ -z "$CSRF" ] && CSRF=$(grep -o 'var CSRF = "[^"]*"' /tmp/esf_dash.tmp | head -1 | sed 's/.*"\([^"]*\)".*/\1/')
 [ -n "$CSRF" ] && ok "CSRF token obtained" || no "CSRF token not found (login may have failed)"
 
 echo "== create + publish a test document =="
