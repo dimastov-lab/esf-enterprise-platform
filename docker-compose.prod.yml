@@ -84,7 +84,11 @@ services:
       - ./backend/app/static:/srv/static:ro     # static served directly by nginx
       - ./infra/nginx/certs:/etc/nginx/certs:ro # TLS certs (you provide)
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost/healthz || exit 1"]
+      # Use 127.0.0.1, not localhost: inside the nginx:alpine container /etc/hosts maps
+      # localhost to ::1 only, but our server listens on IPv4 (`listen 80;`), so a
+      # localhost probe hits IPv6 and gets connection-refused — nginx would report
+      # permanently unhealthy (breaking depends_on / `up --wait`) though it serves fine.
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 5
