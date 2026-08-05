@@ -34,7 +34,7 @@ _MIN_SECRET_LEN = 32
 
 class Settings:
     PROJECT_NAME: str = "ESF Platform"
-    VERSION: str = "1.1.6"
+    VERSION: str = "1.2.0"
 
     # PostgreSQL only. Driver is psycopg2. DATABASE_URL_FILE (Docker secret) is
     # honoured when the plain env var is absent.

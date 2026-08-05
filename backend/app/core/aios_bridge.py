@@ -86,6 +86,21 @@ class AIOSBridgeService:
         if task_id:
             self._post(f"/api/v1/tasks/{task_id}/cancel", None)
 
+    # ── Connectivity ──────────────────────────────────────────────────────
+
+    def ping(self) -> bool:
+        """Return True if AIOS is reachable (any sub-500 response within 3 s)."""
+        try:
+            with httpx.Client(timeout=3.0) as client:
+                resp = client.get(
+                    self._base + "/api/v1/health",
+                    headers=self._headers,
+                )
+                return resp.status_code < 500
+        except Exception as exc:
+            logger.warning("AIOS ping failed: %s", exc)
+            return False
+
     # ── Identity validation (Layer 2) ─────────────────────────────────────
 
     def identity_verify(self, user_token: str) -> Optional[dict]:
@@ -181,6 +196,9 @@ class _NoOpBridge:
 
     def task_cancel(self, *_a, **_kw) -> None:
         pass
+
+    def ping(self) -> bool:
+        return False
 
     def identity_verify(self, *_a, **_kw) -> None:
         return None
