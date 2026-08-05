@@ -25,6 +25,10 @@ _PREFIX = "esf_"
 # Default TTL for credentials issued without an explicit expiry.
 # NULL in the DB means no expiry; callers may override via expires_in_days.
 DEFAULT_TTL_DAYS: Optional[int] = None  # no-expiry default
+# Hard server-side ceiling on credential lifetime. Callers that omit
+# expires_in_days (→ None) receive a non-expiring credential; callers that
+# supply a value must stay within this bound.
+MAX_TTL_DAYS: int = 90
 
 
 def _generate_token() -> str:
@@ -52,6 +56,11 @@ class CredentialService:
         The raw_token is returned ONCE and must be shown to the user immediately;
         it cannot be recovered later.
         """
+        if expires_in_days is not None and expires_in_days > MAX_TTL_DAYS:
+            raise ValueError(
+                f"expires_in_days must not exceed {MAX_TTL_DAYS} days. "
+                f"Got {expires_in_days}."
+            )
         raw_token = _generate_token()
         token_hash = _hash_token(raw_token)
         expires_at: Optional[datetime] = None

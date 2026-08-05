@@ -129,6 +129,23 @@ class TestCredentialService:
         for c in svc.list_for_user(user):
             assert c.revoked_at is not None
 
+    def test_issue_raises_when_expires_in_days_exceeds_max(self, db_session, seed_users):
+        from app.models import User
+        from app.services.credential_service import MAX_TTL_DAYS
+        user = db_session.query(User).filter_by(username="t_admin").one()
+        svc = CredentialService(db_session)
+        with pytest.raises(ValueError, match="90"):
+            svc.issue(user, expires_in_days=MAX_TTL_DAYS + 1)
+
+    def test_issue_accepts_exactly_max_ttl(self, db_session, seed_users):
+        from app.models import User
+        from app.services.credential_service import MAX_TTL_DAYS
+        user = db_session.query(User).filter_by(username="t_admin").one()
+        svc = CredentialService(db_session)
+        cred, raw = svc.issue(user, expires_in_days=MAX_TTL_DAYS)
+        assert cred.expires_at is not None
+        assert cred.is_active
+
 
 # ---------------------------------------------------------------------------
 # HTTP endpoint tests
