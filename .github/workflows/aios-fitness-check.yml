@@ -12,10 +12,5 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Download fitness_check.py from aios
-        run: |
-          curl -fsSL \
-            "https://raw.githubusercontent.com/dimastov-lab/aios/main/tools/fitness_check.py" \
-            -o fitness_check.py
       - name: Run fitness check
-        run: python fitness_check.py .
+        run: python tools/fitness_check.py .
