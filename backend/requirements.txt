@@ -17,7 +17,9 @@ uvicorn[standard]==0.34.0 # pulls patched ujson/python-dotenv transitives
 sqlalchemy==2.0.30
 alembic==1.13.1
 psycopg2-binary==2.9.9
-bcrypt==5.0.0             # password hashing (used directly; passlib 1.7.4 incompatible)
+bcrypt==5.0.0             # password hashing — kept for progressive migration of legacy hashes
+argon2-cffi==25.1.0      # Argon2id password hashing (OWASP 2023 primary algorithm)
+pyjwt==2.13.0            # JWT signing for /auth/token REST endpoint
 itsdangerous==2.2.0       # signed session cookie (Starlette SessionMiddleware)
 jinja2==3.1.6            # clears GHSA-q2x7/gmj6/cpwx template CVEs
 python-multipart==0.0.31  # CVE-2024-53981 + GHSA-6jv3/5rvq/v9pg multipart DoS fixes

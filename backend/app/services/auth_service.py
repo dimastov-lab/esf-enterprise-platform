@@ -7,7 +7,7 @@ from typing import List, Optional
 
 from sqlalchemy.orm import Session
 
-from app.core.passwords import hash_password, verify_password
+from app.core.passwords import hash_password, needs_rehash, verify_password
 from app.models import User
 from app.repositories.user_repository import UserRepository
 
@@ -34,6 +34,9 @@ class AuthService:
             return None
         if not verify_password(password or "", user.hashed_password):
             return None
+        if needs_rehash(user.hashed_password):
+            user.hashed_password = hash_password(password)
+            self.db.flush()
         return user
 
     def ensure_roles(self) -> dict:
