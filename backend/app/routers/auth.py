@@ -124,12 +124,15 @@ def issue_credential(
     - ``label`` — optional human-readable name (e.g. "CI pipeline").
     - ``expires_in_days`` — TTL in days; omit for a non-expiring credential.
     """
-    cred, raw_token = CredentialService(db).issue(
-        user, label=label, expires_in_days=expires_in_days
-    )
+    try:
+        cred, raw_token = CredentialService(db).issue(
+            user, label=label, expires_in_days=expires_in_days
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
     audit_service.record(
-        db, audit_service.LOGIN, user=user,
-        meta={"action": "credential_issued", "credential_id": cred.id, "label": label},
+        db, audit_service.CREDENTIAL_ISSUED, user=user,
+        meta={"credential_id": cred.id, "label": label, "expires_in_days": expires_in_days},
     )
     return {
         "id": cred.id,
@@ -173,7 +176,7 @@ def revoke_credential(
     if not ok:
         raise HTTPException(status_code=404, detail="Credential not found or already revoked.")
     audit_service.record(
-        db, audit_service.LOGOUT, user=user,
-        meta={"action": "credential_revoked", "credential_id": credential_id},
+        db, audit_service.CREDENTIAL_REVOKED, user=user,
+        meta={"credential_id": credential_id},
     )
     return {"revoked": True, "id": credential_id}
