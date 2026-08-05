@@ -133,4 +133,13 @@ Config: `AIOS_ENABLED`, `AIOS_BASE_URL`, `AIOS_TOKEN(_FILE)`, `AIOS_WORKSPACE_ID
 Alembic head: `8d5e97b2590b`. Suite: **169 tests pass** (2026-08-05).
 All AIOS paths are gated on `AIOS_ENABLED=true`; standalone behaviour unchanged.
 
+Security review hardening applied (commit 89ce7a3, 2026-08-05):
+- C1: httpx/httpcore/certifi added to requirements.lock (prod container was unbootable)
+- C2+I3: AIOS claims type-check + AIOS_EXPECTED_TENANT_ID tenant binding guard
+- I8: repo.commit() moved outside fire-and-forget try in create_draft (DB errors now surface correctly)
+- I9: workspace_id sent in task_create/memory_create request bodies
+- TD-023..TD-027: cleartext relay / DoS / hybrid-fallback revocation / row-lock publish / credential TTL parked in TECHNICAL_DEBT.md
+
+Suite: **169 tests pass** (2026-08-05). Branch: main.
+
 Awaiting direction.
