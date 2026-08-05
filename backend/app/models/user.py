@@ -63,3 +63,6 @@ class User(Base):
     documents: Mapped[List["ESFDocument"]] = relationship(  # noqa: F821
         back_populates="owner"
     )
+    api_credentials: Mapped[List["ApiCredential"]] = relationship(  # noqa: F821
+        back_populates="user", cascade="all, delete-orphan"
+    )

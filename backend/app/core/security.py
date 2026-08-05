@@ -50,18 +50,38 @@ def get_current_api_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer),
     db: Session = Depends(get_db),
 ) -> User:
-    """Dependency for API routes protected by Bearer JWT tokens.
+    """Dependency for API routes protected by Bearer tokens.
 
-    Use instead of get_current_user when the caller is a programmatic API client
-    (e.g. machine-to-machine). Web UI routes continue to use get_current_user
-    (session-cookie based).
+    Accepts two token formats:
+    - ``esf_…`` — long-lived PG-backed credential (validated via api_credentials table)
+    - anything else — treated as a short-lived JWT (60 min, stateless)
+
+    Web UI routes continue to use get_current_user (session-cookie based).
     """
     if credentials is None:
         raise HTTPException(status_code=401, detail="Bearer token required",
                             headers={"WWW-Authenticate": "Bearer"})
+    raw = credentials.credentials
+
+    if raw.startswith("esf_"):
+        from app.services.credential_service import CredentialService
+        cred = CredentialService(db).validate(raw)
+        if cred is None:
+            raise HTTPException(status_code=401, detail="Invalid, expired or revoked credential",
+                                headers={"WWW-Authenticate": "Bearer"})
+        user = (
+            db.query(User)
+            .filter(User.id == cred.user_id, User.is_active.is_(True))
+            .one_or_none()
+        )
+        if user is None:
+            raise HTTPException(status_code=401, detail="User not found or inactive",
+                                headers={"WWW-Authenticate": "Bearer"})
+        return user
+
     from app.core.jwt import decode_access_token
     try:
-        user_id = decode_access_token(credentials.credentials)
+        user_id = decode_access_token(raw)
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="Invalid or expired token",
                             headers={"WWW-Authenticate": "Bearer"})

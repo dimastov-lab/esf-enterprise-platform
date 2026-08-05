@@ -1,8 +1,11 @@
-"""Authentication routes: login / logout (session) + /auth/token (JWT REST API)."""
+"""Authentication routes: login / logout (session) + /auth/token (JWT REST API)
++ /auth/credentials (long-lived PG-backed API credentials).
+"""
 from pathlib import Path
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -11,10 +14,12 @@ from app.core import ratelimit
 from app.core.config import settings
 from app.core.jwt import create_access_token
 from app.core.observability import client_ip
-from app.core.security import get_optional_user
+from app.core.security import get_current_api_user, get_optional_user
 from app.db.session import get_db
+from app.models.user import User
 from app.services import audit_service
 from app.services.auth_service import AuthService
+from app.services.credential_service import CredentialService
 
 _TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
@@ -100,3 +105,75 @@ def logout(request: Request, db: Session = Depends(get_db)):
     audit_service.record(db, audit_service.LOGOUT, user=user, request=request)
     request.session.clear()
     return RedirectResponse(url="/login", status_code=303)
+
+
+# ── Long-lived API credentials (PG-backed) ──────────────────────────────────
+
+@router.post("/auth/credentials")
+def issue_credential(
+    label: Optional[str] = Form(None),
+    expires_in_days: Optional[int] = Form(None),
+    user: User = Depends(get_current_api_user),
+    db: Session = Depends(get_db),
+):
+    """Issue a long-lived API credential for the authenticated user.
+
+    Returns the raw token **once** — it cannot be retrieved again. Store it
+    in a secrets manager immediately.
+
+    - ``label`` — optional human-readable name (e.g. "CI pipeline").
+    - ``expires_in_days`` — TTL in days; omit for a non-expiring credential.
+    """
+    cred, raw_token = CredentialService(db).issue(
+        user, label=label, expires_in_days=expires_in_days
+    )
+    audit_service.record(
+        db, audit_service.LOGIN, user=user,
+        meta={"action": "credential_issued", "credential_id": cred.id, "label": label},
+    )
+    return {
+        "id": cred.id,
+        "token": raw_token,
+        "label": cred.label,
+        "expires_at": cred.expires_at.isoformat() if cred.expires_at else None,
+        "created_at": cred.created_at.isoformat(),
+        "note": "Store this token securely — it will not be shown again.",
+    }
+
+
+@router.get("/auth/credentials")
+def list_credentials(
+    user: User = Depends(get_current_api_user),
+    db: Session = Depends(get_db),
+):
+    """List API credentials for the authenticated user (no raw tokens)."""
+    creds = CredentialService(db).list_for_user(user)
+    return [
+        {
+            "id": c.id,
+            "label": c.label,
+            "expires_at": c.expires_at.isoformat() if c.expires_at else None,
+            "revoked_at": c.revoked_at.isoformat() if c.revoked_at else None,
+            "created_at": c.created_at.isoformat(),
+            "last_used_at": c.last_used_at.isoformat() if c.last_used_at else None,
+            "active": c.is_active,
+        }
+        for c in creds
+    ]
+
+
+@router.delete("/auth/credentials/{credential_id}")
+def revoke_credential(
+    credential_id: int,
+    user: User = Depends(get_current_api_user),
+    db: Session = Depends(get_db),
+):
+    """Revoke an API credential by id. Idempotent — returns 404 when not found."""
+    ok = CredentialService(db).revoke(credential_id, user)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Credential not found or already revoked.")
+    audit_service.record(
+        db, audit_service.LOGOUT, user=user,
+        meta={"action": "credential_revoked", "credential_id": credential_id},
+    )
+    return {"revoked": True, "id": credential_id}
