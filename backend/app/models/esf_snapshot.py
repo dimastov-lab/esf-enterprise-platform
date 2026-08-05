@@ -5,6 +5,7 @@ is the content hash of the canonical payload. Rows are never updated.
 """
 import uuid as uuid_pkg
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, String, event, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -31,6 +32,7 @@ class ESFSnapshot(Base):
     immutable: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="true"
     )
+    aios_memory_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     document: Mapped["ESFDocument"] = relationship(back_populates="snapshots")  # noqa: F821
 
