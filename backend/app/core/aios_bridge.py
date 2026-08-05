@@ -58,6 +58,8 @@ class AIOSBridgeService:
             "type": _ESF_TASK_TYPE,
             "payload": {"esf_uuid": doc_uuid, "esf_id": doc_id},
         }
+        if self._workspace_id:
+            body["workspace_id"] = self._workspace_id
         resp = self._post("/api/v1/tasks", body,
                           idempotency_key=f"esf-create-{doc_uuid}")
         if resp is None:
@@ -126,6 +128,8 @@ class AIOSBridgeService:
             "payload": payload,
             "sha256": sha256,
         }
+        if self._workspace_id:
+            body["workspace_id"] = self._workspace_id
         resp = self._post(
             "/api/v1/memories",
             body,

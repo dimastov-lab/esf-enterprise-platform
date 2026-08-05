@@ -155,13 +155,14 @@ class ESFService:
         doc.signature = ESFSignature()
         doc.items = [ESFItem(row_number=1)]
         doc = self.repo.add(doc)
+        task_id = None
         try:
             task_id = get_bridge().task_create(str(doc.uuid), doc.id)
-            if task_id:
-                doc.aios_task_id = task_id
-                self.repo.commit()
         except Exception as exc:  # fire-and-forget — AIOS failure must not abort ESF
             _log.warning("AIOS task_create failed for doc %s: %s", doc.id, exc)
+        if task_id:
+            doc.aios_task_id = task_id
+            self.repo.commit()  # DB errors surface here, not masked as AIOS failures
         return doc
 
     _PARTY_FIELDS = ("inn", "name", "branch_inn", "branch", "address",

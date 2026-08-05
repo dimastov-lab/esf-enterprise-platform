@@ -102,6 +102,11 @@ class Settings:
     # Supply via AIOS_TOKEN (env) or AIOS_TOKEN_FILE (Docker secret mount).
     AIOS_TOKEN: str = env_or_file("AIOS_TOKEN", "")
     AIOS_WORKSPACE_ID: str = os.getenv("AIOS_WORKSPACE_ID", "")
+    # When set, AIOS identity claims are rejected unless their `tenant_id` field
+    # matches this value. Prevents cross-tenant privilege escalation on a shared
+    # AIOS instance. Unset (the default) means any AIOS tenant is accepted — only
+    # safe in single-tenant deployments where AIOS has no other tenants.
+    AIOS_EXPECTED_TENANT_ID: str = os.getenv("AIOS_EXPECTED_TENANT_ID", "")
 
     @property
     def effective_aios_token(self) -> str:

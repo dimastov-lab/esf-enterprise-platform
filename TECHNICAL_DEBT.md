@@ -288,6 +288,74 @@
   as the stable anchor.
 - **Status:** Open. Deferred until multi-tenant scope is defined.
 
+## TD-023 — AIOS: cleartext HTTP relay of caller tokens
+
+- **ID:** TD-023
+- **Severity:** Medium
+- **Module:** `backend/app/core/security.py`, `backend/app/core/config.py`
+- **Description:** When `AIOS_ENABLED=true`, every non-`esf_` bearer token is relayed to
+  `AIOS_BASE_URL` via `identity_verify()`. The default URL is `http://localhost:8100`
+  (plaintext). No scheme enforcement or startup rejection of `http://` in production.
+- **Risk:** Operator misconfiguration exposes tokens on the network in cleartext.
+- **Fix Plan:** In `Settings.validate_for_runtime()`, when `AIOS_ENABLED=true` and
+  `is_production`, reject `AIOS_BASE_URL` that does not start with `https://`.
+- **Status:** Open. Low operational risk for current single-host deployment.
+
+## TD-024 — AIOS: synchronous blocking AIOS call in unthrottled auth dependency
+
+- **ID:** TD-024
+- **Severity:** Medium
+- **Module:** `backend/app/core/security.py`
+- **Description:** `get_current_api_user` runs synchronously (Starlette threadpool).
+  An unauthenticated caller with any bearer token triggers a 5-second blocking
+  `httpx.Client()` call (new TCP/TLS handshake per call). The API credential endpoint
+  has no rate limiting.
+- **Risk:** ~50 concurrent invalid tokens saturate the threadpool, stalling the whole app.
+- **Fix Plan:** Apply the existing rate-limiter to `GET /auth/credentials`; reduce AIOS
+  `timeout` to 2s; consider an async httpx client for Layer 2 calls.
+- **Status:** Open. Acceptable for current load profile.
+
+## TD-025 — AIOS Layer 2: hybrid fallback defeats central revocation
+
+- **ID:** TD-025
+- **Severity:** Medium
+- **Module:** `backend/app/core/security.py`
+- **Description:** When AIOS rejects a token (`identity_verify` returns None), `get_current_api_user`
+  falls through to ESF JWT validation. An ESF admin disabling a user in AIOS does not immediately
+  revoke their 60-minute ESF JWT — access is granted for the remaining TTL.
+- **Risk:** Central revocation via AIOS is advisory, not authoritative, in the hybrid mode.
+- **Fix Plan:** If strict revocation is required, remove the JWT fallback path when
+  `AIOS_ENABLED=true`. The design accepted this tradeoff deliberately (graceful degradation
+  when AIOS is down); strict revocation and graceful degradation are mutually exclusive.
+- **Status:** Open. Accepted design tradeoff of the hybrid approach.
+
+## TD-026 — AIOS publish: memory_create inside open row lock
+
+- **ID:** TD-026
+- **Severity:** Medium
+- **Module:** `backend/app/services/esf_service.py:publish()`
+- **Description:** `memory_create()` (up to 5s HTTP call) runs while the document row lock
+  (`SELECT … FOR UPDATE`) is held. Pool connections (5 + 10 overflow) are held open during
+  the AIOS call.
+- **Risk:** AIOS latency spikes block concurrent publishes and eventually unrelated requests.
+- **Fix Plan:** Move the `memory_create` call to after `self.repo.commit()`, storing
+  `aios_memory_id` in a post-commit UPDATE (which requires relaxing the snapshot immutability
+  guard for `aios_memory_id` specifically).
+- **Status:** Open. The current ordering is required for immutability correctness.
+
+## TD-027 — API credentials: no maximum TTL, dead revoke_all_for_user
+
+- **ID:** TD-027
+- **Severity:** Medium
+- **Module:** `backend/app/services/credential_service.py`, `backend/app/routers/auth.py`
+- **Description:** `expires_in_days` is caller-controlled with no server-side maximum; omitting
+  it yields a credential that never expires. `revoke_all_for_user()` is defined but never called
+  (no caller in `app/`). Credential issuance is audited as `LOGIN` action.
+- **Risk:** A captured short-lived JWT can be exchanged for a permanent credential.
+- **Fix Plan:** Enforce `max_ttl_days=90` in `issue()`; call `revoke_all_for_user` on password
+  reset and account deactivation; add a distinct `CREDENTIAL_ISSUED` audit action.
+- **Status:** Open.
+
 ## Rule
 
 Every technical debt item must include:

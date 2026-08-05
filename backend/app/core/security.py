@@ -5,11 +5,14 @@ depend on `get_current_user`, which raises `NotAuthenticated` when there is no
 valid session; an exception handler (main.py) redirects those to /login.
 Public routes use no auth dependency.
 """
+import logging
 import secrets
 from typing import Optional
 
 import jwt
 from fastapi import Depends, HTTPException, Request
+
+_log = logging.getLogger(__name__)
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
@@ -87,8 +90,22 @@ def get_current_api_user(
     from app.core.config import settings as _settings
     if _settings.AIOS_ENABLED:
         from app.core.aios_bridge import get_bridge
-        claims = get_bridge().identity_verify(raw)
+        try:
+            claims = get_bridge().identity_verify(raw)
+        except Exception as exc:  # bridge is already fire-and-forget; guard the call site too
+            _log.warning("AIOS identity_verify raised: %s", exc)
+            claims = None
         if claims is not None:
+            if not isinstance(claims, dict):
+                raise HTTPException(status_code=401, detail="AIOS returned unexpected identity format",
+                                    headers={"WWW-Authenticate": "Bearer"})
+            expected_tenant = _settings.AIOS_EXPECTED_TENANT_ID
+            if expected_tenant and claims.get("tenant_id") != expected_tenant:
+                raise HTTPException(
+                    status_code=401,
+                    detail="AIOS identity does not belong to the expected tenant",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
             aios_username = claims.get("preferred_username") or claims.get("sub")
             if aios_username:
                 user = (
