@@ -91,6 +91,22 @@ class Settings:
     def effective_jwt_secret(self) -> str:
         return self.JWT_SECRET_KEY or self.SECRET_KEY
 
+    # ── AIOS Core integration (Layer 1 — Tasks) ──────────────────────────
+    # Safe default: disabled. Set AIOS_ENABLED=true only when an AIOS instance
+    # is reachable and AIOS_TOKEN / AIOS_TOKEN_FILE is provisioned.
+    AIOS_ENABLED: bool = os.getenv("AIOS_ENABLED", "false").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
+    AIOS_BASE_URL: str = os.getenv("AIOS_BASE_URL", "http://localhost:8100")
+    # Service-account token ESF uses to authenticate against AIOS.
+    # Supply via AIOS_TOKEN (env) or AIOS_TOKEN_FILE (Docker secret mount).
+    AIOS_TOKEN: str = env_or_file("AIOS_TOKEN", "")
+    AIOS_WORKSPACE_ID: str = os.getenv("AIOS_WORKSPACE_ID", "")
+
+    @property
+    def effective_aios_token(self) -> str:
+        return self.AIOS_TOKEN
+
     # Connection pool + a hard per-statement timeout (ms) so no single query can
     # hang a worker. Tunable per deployment.
     DB_POOL_SIZE: int = int(os.getenv("DB_POOL_SIZE", "5"))

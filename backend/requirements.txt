@@ -29,3 +29,8 @@ pillow==12.3.0            # QR PNG image backend (12.3.0 clears the 2026 PYSEC p
 
 # WeasyPrint native libs (macOS dev): brew install pango  (provides pango/cairo/gobject).
 # On Linux/Docker these ship in standard paths. No ReportLab — the PDF is the HTML template.
+
+# AIOS SDK — editable install from the local monorepo (Layer 1 convergence).
+# In Docker / CI replace with a pinned wheel or VCS reference once the SDK is published.
+# -e /Users/dmitrijcernikov/Projects/aios  # local dev
+httpx>=0.27.0             # transport layer for aios_sdk (already a transitive dep)
