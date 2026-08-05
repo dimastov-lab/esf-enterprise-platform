@@ -84,6 +84,35 @@ class AIOSBridgeService:
         if task_id:
             self._post(f"/api/v1/tasks/{task_id}/cancel", None)
 
+    # ── Identity validation (Layer 2) ─────────────────────────────────────
+
+    def identity_verify(self, user_token: str) -> Optional[dict]:
+        """Validate a user Bearer token via AIOS Identity.
+
+        Calls GET /api/v1/identity/me with the *caller's* token (not the ESF
+        service-account token) so AIOS validates it and returns identity claims.
+        Returns the claims dict on success, None when the token is invalid or
+        AIOS is unreachable (ESF falls back to its own JWT path in that case).
+        """
+        try:
+            with httpx.Client(timeout=5.0) as client:
+                resp = client.get(
+                    self._base + "/api/v1/identity/me",
+                    headers={
+                        "Authorization": f"Bearer {user_token}",
+                        "Accept": "application/json",
+                    },
+                )
+                if resp.status_code == 200:
+                    return resp.json()
+                logger.warning(
+                    "AIOS identity_verify returned %s", resp.status_code
+                )
+                return None
+        except Exception as exc:
+            logger.warning("AIOS identity_verify failed: %s", exc)
+            return None
+
     # ── Memory lifecycle (Layer 3) ─────────────────────────────────────────
 
     def memory_create(self, snapshot_uuid: str, sha256: str, payload: dict) -> Optional[str]:
@@ -148,6 +177,9 @@ class _NoOpBridge:
 
     def task_cancel(self, *_a, **_kw) -> None:
         pass
+
+    def identity_verify(self, *_a, **_kw) -> None:
+        return None
 
     def memory_create(self, *_a, **_kw) -> None:
         return None

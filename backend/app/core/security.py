@@ -79,6 +79,33 @@ def get_current_api_user(
                                 headers={"WWW-Authenticate": "Bearer"})
         return user
 
+    # Layer 2 — AIOS Identity: when AIOS_ENABLED=true, validate the token
+    # against AIOS first. If AIOS confirms it (returns claims), resolve the
+    # local user by preferred_username/sub. If AIOS is unreachable or rejects
+    # the token (returns None), fall through to ESF's own JWT validation so
+    # locally-issued tokens continue to work even when AIOS is down.
+    from app.core.config import settings as _settings
+    if _settings.AIOS_ENABLED:
+        from app.core.aios_bridge import get_bridge
+        claims = get_bridge().identity_verify(raw)
+        if claims is not None:
+            aios_username = claims.get("preferred_username") or claims.get("sub")
+            if aios_username:
+                user = (
+                    db.query(User)
+                    .filter(User.username == aios_username, User.is_active.is_(True))
+                    .one_or_none()
+                )
+                if user is not None:
+                    return user
+            raise HTTPException(
+                status_code=401,
+                detail="AIOS identity verified but no matching ESF user",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        # claims is None: AIOS unavailable or token not recognized by AIOS.
+        # Fall through to ESF JWT so local tokens keep working.
+
     from app.core.jwt import decode_access_token
     try:
         user_id = decode_access_token(raw)
