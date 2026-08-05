@@ -84,6 +84,28 @@ class AIOSBridgeService:
         if task_id:
             self._post(f"/api/v1/tasks/{task_id}/cancel", None)
 
+    # ── Memory lifecycle (Layer 3) ─────────────────────────────────────────
+
+    def memory_create(self, snapshot_uuid: str, sha256: str, payload: dict) -> Optional[str]:
+        """Write a published ESF snapshot to AIOS Memories. Returns memory_id.
+
+        Uses snapshot_uuid as the Idempotency-Key so a retry on the same
+        snapshot always resolves to the same memory record.
+        """
+        body = {
+            "subject_ref": f"esf-snapshot:{snapshot_uuid}",
+            "payload": payload,
+            "sha256": sha256,
+        }
+        resp = self._post(
+            "/api/v1/memories",
+            body,
+            idempotency_key=f"esf-snapshot-{snapshot_uuid}",
+        )
+        if resp is None:
+            return None
+        return resp.get("id") or resp.get("memory_id")
+
     # ── Internal ──────────────────────────────────────────────────────────
 
     def _post(self, path: str, body: Optional[dict],
@@ -126,6 +148,9 @@ class _NoOpBridge:
 
     def task_cancel(self, *_a, **_kw) -> None:
         pass
+
+    def memory_create(self, *_a, **_kw) -> None:
+        return None
 
 
 def _build_bridge():

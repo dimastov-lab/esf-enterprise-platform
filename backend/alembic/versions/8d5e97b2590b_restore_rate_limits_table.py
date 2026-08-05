@@ -19,16 +19,27 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    """Restore rate_limits table used by app/core/ratelimit.py."""
-    op.create_table(
-        'rate_limits',
-        sa.Column('bucket', sa.VARCHAR(length=512), autoincrement=False, nullable=False),
-        sa.Column('window_start', sa.BIGINT(), autoincrement=False, nullable=False),
-        sa.Column('count', sa.INTEGER(), server_default=sa.text('0'), autoincrement=False, nullable=False),
-        sa.PrimaryKeyConstraint('bucket', 'window_start', name='rate_limits_pkey')
-    )
+    """Restore rate_limits table if it was dropped by a prior migration run.
+
+    On a fresh production DB the autogenerate migration 9bb4bef2e079 never
+    dropped rate_limits (the DROP was removed before commit), so this is a
+    no-op for production. The guard prevents a DuplicateTable error.
+    """
+    conn = op.get_bind()
+    from sqlalchemy import inspect as sa_inspect
+    if not sa_inspect(conn).has_table('rate_limits'):
+        op.create_table(
+            'rate_limits',
+            sa.Column('bucket', sa.VARCHAR(length=512), autoincrement=False, nullable=False),
+            sa.Column('window_start', sa.BIGINT(), autoincrement=False, nullable=False),
+            sa.Column('count', sa.INTEGER(), server_default=sa.text('0'), autoincrement=False, nullable=False),
+            sa.PrimaryKeyConstraint('bucket', 'window_start', name='rate_limits_pkey'),
+        )
 
 
 def downgrade() -> None:
-    """Drop rate_limits table."""
-    op.drop_table('rate_limits')
+    """Drop rate_limits table only if this migration created it."""
+    conn = op.get_bind()
+    from sqlalchemy import inspect as sa_inspect
+    if sa_inspect(conn).has_table('rate_limits'):
+        op.drop_table('rate_limits')

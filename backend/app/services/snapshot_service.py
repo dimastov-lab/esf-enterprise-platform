@@ -6,6 +6,7 @@ at the ORM layer (see app/models/esf_snapshot.py).
 """
 import hashlib
 import json
+import uuid as uuid_pkg
 
 from app.models import ESFDocument, ESFSnapshot
 
@@ -21,6 +22,7 @@ def content_hash(payload: dict) -> str:
 def make_snapshot(doc: ESFDocument, payload: dict) -> ESFSnapshot:
     return ESFSnapshot(
         document_id=doc.id,
+        uuid=uuid_pkg.uuid4(),   # set in Python so it's accessible before flush
         payload_json=payload,
         sha256=content_hash(payload),
         immutable=True,
