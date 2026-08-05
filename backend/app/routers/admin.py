@@ -1,4 +1,4 @@
-"""Admin-only user management (RBAC)."""
+"""Admin-only user management (RBAC) + AIOS operability."""
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, Request
@@ -6,6 +6,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.security import (
     get_csrf_token,
     get_current_user,
@@ -69,6 +70,43 @@ def admin_create_user(request: Request, db: Session = Depends(get_db),
             status_code=400,
         )
     return RedirectResponse(url="/admin/users", status_code=303)
+
+
+@router.get("/admin/aios", response_class=HTMLResponse)
+def admin_aios(request: Request, db: Session = Depends(get_db),
+               user: User = Depends(get_current_user)):
+    require_admin(user)
+    from app.core.aios_bridge import get_bridge
+    from app.models.esf_document import ESFDocument
+    from app.models.esf_snapshot import ESFSnapshot
+    bridge = get_bridge()
+    enabled = settings.AIOS_ENABLED
+    reachable = bridge.ping() if enabled else None
+    docs_total = db.query(ESFDocument).count()
+    docs_linked = db.query(ESFDocument).filter(
+        ESFDocument.aios_task_id.isnot(None)
+    ).count()
+    snaps_total = db.query(ESFSnapshot).count()
+    snaps_linked = db.query(ESFSnapshot).filter(
+        ESFSnapshot.aios_memory_id.isnot(None)
+    ).count()
+    return templates.TemplateResponse(
+        request,
+        "admin_aios.html",
+        {
+            "request": request,
+            "username": user.username,
+            "enabled": enabled,
+            "base_url": settings.AIOS_BASE_URL,
+            "workspace_id": settings.AIOS_WORKSPACE_ID or "—",
+            "token_set": bool(settings.AIOS_TOKEN),
+            "reachable": reachable,
+            "docs_total": docs_total,
+            "docs_linked": docs_linked,
+            "snaps_total": snaps_total,
+            "snaps_linked": snaps_linked,
+        },
+    )
 
 
 @router.get("/admin/audit", response_class=HTMLResponse)
