@@ -1,12 +1,15 @@
-"""Authentication routes: login / logout."""
+"""Authentication routes: login / logout (session) + /auth/token (JWT REST API)."""
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, Form, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.security import OAuth2PasswordRequestForm
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from app.core import ratelimit
+from app.core.config import settings
+from app.core.jwt import create_access_token
 from app.core.observability import client_ip
 from app.core.security import get_optional_user
 from app.db.session import get_db
@@ -56,6 +59,39 @@ def login(request: Request, username: str = Form(...), password: str = Form(...)
     request.session.pop("csrf_token", None)   # rotate the CSRF token on privilege change
     audit_service.record(db, audit_service.LOGIN, user=user, request=request)
     return RedirectResponse(url="/dashboard", status_code=303)
+
+
+@router.post("/auth/token")
+def api_token(
+    request: Request,
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
+):
+    """Issue a short-lived Bearer JWT for programmatic API access.
+
+    Clients send ``Authorization: Bearer <token>`` on subsequent API requests.
+    bcrypt runs once here; all downstream verification is a cheap signature check.
+    Rate-limited by (IP, username) — same policy as the session login.
+    """
+    key = f"{client_ip(request)}\x00{(form_data.username or '').strip().lower()}"
+    if ratelimit.is_locked(key):
+        raise HTTPException(status_code=429, detail="Too many requests. Try again later.")
+
+    user = AuthService(db).authenticate(form_data.username, form_data.password)
+    if user is None:
+        ratelimit.record_failure(key)
+        audit_service.record(db, audit_service.LOGIN_FAILED, request=request,
+                             meta={"username": form_data.username})
+        raise HTTPException(status_code=401, detail="Incorrect username or password",
+                            headers={"WWW-Authenticate": "Bearer"})
+
+    ratelimit.reset(key)
+    audit_service.record(db, audit_service.LOGIN, user=user, request=request)
+    return {
+        "access_token": create_access_token(user.id),
+        "token_type": "bearer",
+        "expires_in": settings.JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    }
 
 
 @router.get("/logout")

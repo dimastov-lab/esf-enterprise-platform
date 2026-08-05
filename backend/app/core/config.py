@@ -25,7 +25,7 @@ def env_or_file(name: str, default: str) -> str:
     return default
 
 
-DEFAULT_SECRET = "dev-only-secret-change-me"
+DEFAULT_SECRET = "dev-only-secret-change-me-for-prod-use"  # 38 chars; "change-me" triggers prod rejection
 # Substrings that mark an unedited placeholder secret (from the .env examples).
 # Any SECRET_KEY containing one is rejected in production (fail-closed).
 _PLACEHOLDER_SECRET_MARKERS = ("change-me", "change_me", "changeme")
@@ -78,6 +78,18 @@ class Settings:
     # backend/storage/qr. Tests point this at a tmp dir (TD-016) so publishing
     # in the suite never litters the working tree.
     QR_STORAGE_DIR: str = os.getenv("QR_STORAGE_DIR", "")
+
+    # JWT tokens for the REST /auth/token endpoint. JWT_SECRET_KEY defaults to
+    # SECRET_KEY so no extra configuration is required; set it independently when
+    # you need separate rotation schedules for session vs. API tokens.
+    JWT_SECRET_KEY: str = env_or_file("JWT_SECRET_KEY", "")
+    JWT_ACCESS_TOKEN_EXPIRE_MINUTES: int = int(
+        os.getenv("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", "60")
+    )
+
+    @property
+    def effective_jwt_secret(self) -> str:
+        return self.JWT_SECRET_KEY or self.SECRET_KEY
 
     # Connection pool + a hard per-statement timeout (ms) so no single query can
     # hang a worker. Tunable per deployment.

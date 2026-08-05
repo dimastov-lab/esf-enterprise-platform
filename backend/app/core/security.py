@@ -8,11 +8,15 @@ Public routes use no auth dependency.
 import secrets
 from typing import Optional
 
+import jwt
 from fastapi import Depends, HTTPException, Request
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models import User
+
+_bearer = HTTPBearer(auto_error=False)
 
 
 class NotAuthenticated(Exception):
@@ -40,6 +44,36 @@ def get_current_user(request: Request, db: Session = Depends(get_db)) -> User:
 def require_admin(user: User) -> None:
     if not user.is_admin:
         raise HTTPException(status_code=403, detail="Требуются права администратора.")
+
+
+def get_current_api_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer),
+    db: Session = Depends(get_db),
+) -> User:
+    """Dependency for API routes protected by Bearer JWT tokens.
+
+    Use instead of get_current_user when the caller is a programmatic API client
+    (e.g. machine-to-machine). Web UI routes continue to use get_current_user
+    (session-cookie based).
+    """
+    if credentials is None:
+        raise HTTPException(status_code=401, detail="Bearer token required",
+                            headers={"WWW-Authenticate": "Bearer"})
+    from app.core.jwt import decode_access_token
+    try:
+        user_id = decode_access_token(credentials.credentials)
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token",
+                            headers={"WWW-Authenticate": "Bearer"})
+    user = (
+        db.query(User)
+        .filter(User.id == user_id, User.is_active.is_(True))
+        .one_or_none()
+    )
+    if user is None:
+        raise HTTPException(status_code=401, detail="User not found or inactive",
+                            headers={"WWW-Authenticate": "Bearer"})
+    return user
 
 
 def require_owner_or_admin(doc, user: User) -> None:
