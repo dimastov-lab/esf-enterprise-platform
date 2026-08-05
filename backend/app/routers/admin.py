@@ -89,11 +89,11 @@ def admin_deactivate_user(
     except ValueError as exc:
         return RedirectResponse(url=f"/admin/users?error={exc}", status_code=303)
     revoked = CredentialService(db).revoke_all_for_user(target)
+    db.commit()  # commit deactivation + revocations first
     audit_service.record(
         db, audit_service.CREDENTIAL_REVOKED, user=current_user,
         meta={"deactivated_user_id": user_id, "credentials_revoked": revoked},
     )
-    db.commit()
     return RedirectResponse(url="/admin/users", status_code=303)
 
 
