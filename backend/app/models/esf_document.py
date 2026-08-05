@@ -52,6 +52,9 @@ class ESFDocument(Base):
     raw_payload: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     pdf_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     qr_path: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    # AIOS Core task id (Layer 1 integration). NULL when AIOS_ENABLED=false or
+    # the task call failed (fire-and-forget). ESF never reads this back from AIOS.
+    aios_task_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
 
     owner: Mapped["User"] = relationship(back_populates="documents")  # noqa: F821
     organization: Mapped[Optional["Organization"]] = relationship(  # noqa: F821

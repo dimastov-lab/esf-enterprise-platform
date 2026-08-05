@@ -13,6 +13,7 @@ from fastapi import HTTPException
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 
+from app.core.aios_bridge import get_bridge
 from app.core.security import require_owner_or_admin
 from app.models import (
     DocumentStatus,
@@ -134,6 +135,7 @@ class ESFService:
     # ---- create --------------------------------------------------------
     def create_draft(self, user: User) -> ESFDocument:
         doc = ESFDocument(owner_id=user.id, status=DocumentStatus.DRAFT)
+        # aios_task_id is set after repo.add() so we have a real doc.id
         supplier = ESFParty(party_type=PartyType.SUPPLIER)
         # Carry the supplier over from the user's most recent document — it's
         # almost always the same organisation, so this removes re-entering it on
@@ -152,7 +154,15 @@ class ESFService:
         doc.totals = ESFTotals()
         doc.signature = ESFSignature()
         doc.items = [ESFItem(row_number=1)]
-        return self.repo.add(doc)
+        doc = self.repo.add(doc)
+        try:
+            task_id = get_bridge().task_create(str(doc.uuid), doc.id)
+            if task_id:
+                doc.aios_task_id = task_id
+                self.repo.commit()
+        except Exception as exc:  # fire-and-forget — AIOS failure must not abort ESF
+            _log.warning("AIOS task_create failed for doc %s: %s", doc.id, exc)
+        return doc
 
     _PARTY_FIELDS = ("inn", "name", "branch_inn", "branch", "address",
                      "tax_office_code", "tax_office", "bank", "bik", "account")
@@ -212,6 +222,10 @@ class ESFService:
         doc.cancelled_at = datetime.now(timezone.utc)
         self.repo.commit()
         self.repo.refresh(doc)
+        try:
+            get_bridge().task_cancel(doc.aios_task_id)
+        except Exception as exc:
+            _log.warning("AIOS task_cancel failed for doc %s: %s", doc.id, exc)
         return doc
 
     def create_correction(self, doc: ESFDocument, user: User) -> ESFDocument:
@@ -425,6 +439,11 @@ class ESFService:
         doc.status = DocumentStatus.DRAFT if errors else DocumentStatus.VALIDATED
         self.repo.commit()
         self.repo.refresh(doc)
+        if not errors:
+            try:
+                get_bridge().task_start(doc.aios_task_id)
+            except Exception as exc:
+                _log.warning("AIOS task_start failed for doc %s: %s", doc.id, exc)
         return errors
 
     def next_esf_number(self) -> str:
@@ -485,6 +504,11 @@ class ESFService:
             self.repo.rollback()                              # no partial publication
             raise
         self.repo.refresh(doc)
+        try:
+            get_bridge().task_escalate(doc.aios_task_id)
+            get_bridge().task_complete(doc.aios_task_id)
+        except Exception as exc:
+            _log.warning("AIOS task complete failed for doc %s: %s", doc.id, exc)
         return []
 
     def _rebuild_items(self, doc: ESFDocument, form) -> None:
