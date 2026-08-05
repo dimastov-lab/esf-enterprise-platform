@@ -93,6 +93,7 @@ def admin_deactivate_user(
         db, audit_service.CREDENTIAL_REVOKED, user=current_user,
         meta={"deactivated_user_id": user_id, "credentials_revoked": revoked},
     )
+    db.commit()
     return RedirectResponse(url="/admin/users", status_code=303)
 
 
