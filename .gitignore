@@ -27,12 +27,11 @@ logs/*
 !storage/.gitkeep
 !logs/.gitkeep
 
-# Backend runtime output — generated PDFs / QR codes are never committed.
-# No committed .gitkeep placeholder is needed: storage/qr is (re)created at
-# runtime by qr_service (mkdir(parents=True, exist_ok=True)) and by the Dockerfile,
-# and PDFs are rendered in-memory and streamed, never persisted to storage/pdf.
+# Backend runtime output — generated PDFs / QR codes (keep folders, ignore contents)
 backend/storage/pdf/*
 backend/storage/qr/*
+!backend/storage/pdf/.gitkeep
+!backend/storage/qr/.gitkeep
 
 # Personal legal / financial material — NOT part of the platform, never commit
 /ПАКЕТ_ДОКАЗАТЕЛЬСТВ*/
@@ -53,6 +52,6 @@ backend/storage/qr/*
 # Review / scratch artifacts (626MB of audio, video, captured refs — not source)
 /_review/
 
-# uv is not this repo's package manager (hash-pinned requirements.lock is canonical);
-# a stray `uv run` in backend/ generates this — never commit it
-uv.lock
+# uv tooling artifact: dependency truth is backend/requirements.lock (hash-pinned);
+# an empty uv.lock regenerates whenever `uv run` is used in backend/
+backend/uv.lock
