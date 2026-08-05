@@ -16,7 +16,9 @@ from app.core.security import (
 from app.db.session import get_db
 from app.models import User
 from app.repositories.audit_repository import AuditRepository
+from app.services import audit_service
 from app.services.auth_service import ROLES, AuthService
+from app.services.credential_service import CredentialService
 
 _TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
@@ -69,6 +71,28 @@ def admin_create_user(request: Request, db: Session = Depends(get_db),
              "csrf_token": get_csrf_token(request)},
             status_code=400,
         )
+    return RedirectResponse(url="/admin/users", status_code=303)
+
+
+@router.post("/admin/users/{user_id}/deactivate", response_class=HTMLResponse)
+def admin_deactivate_user(
+    user_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    _csrf: None = Depends(require_csrf),
+):
+    require_admin(current_user)
+    service = AuthService(db)
+    try:
+        target = service.deactivate_user(user_id)
+    except ValueError as exc:
+        return RedirectResponse(url=f"/admin/users?error={exc}", status_code=303)
+    revoked = CredentialService(db).revoke_all_for_user(target)
+    audit_service.record(
+        db, audit_service.CREDENTIAL_REVOKED, user=current_user,
+        meta={"deactivated_user_id": user_id, "credentials_revoked": revoked},
+    )
     return RedirectResponse(url="/admin/users", status_code=303)
 
 

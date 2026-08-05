@@ -66,6 +66,17 @@ class AuthService:
         user.roles.append(roles[role])
         return self.repo.add(user)
 
+    def deactivate_user(self, user_id: int) -> "User":
+        """Set user inactive. Raises ValueError when not found or already inactive."""
+        user = self.repo.get_by_id(user_id)
+        if user is None:
+            raise ValueError(f"User {user_id} not found.")
+        if not user.is_active:
+            raise ValueError(f"User {user_id} is already inactive.")
+        user.is_active = False
+        self.db.flush()
+        return user
+
     def ensure_dev_admin(self) -> None:
         """Dev convenience: guarantee roles exist and at least one admin (admin/admin123)."""
         self.ensure_roles()

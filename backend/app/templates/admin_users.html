@@ -54,7 +54,7 @@
 
     <div class="card" style="padding:0;overflow:hidden;">
       <table>
-        <thead><tr><th>ID</th><th>Имя</th><th>Роли</th><th>Админ</th><th>Активен</th></tr></thead>
+        <thead><tr><th>ID</th><th>Имя</th><th>Роли</th><th>Админ</th><th>Активен</th><th></th></tr></thead>
         <tbody>
           {% for u in rows %}
           <tr>
@@ -63,6 +63,21 @@
             <td><span class="pill">{{ u.roles }}</span></td>
             <td>{{ "да" if u.is_admin else "нет" }}</td>
             <td>{{ "да" if u.active else "нет" }}</td>
+            <td>
+              {% if u.active and not u.is_admin %}
+              <form method="post" action="/admin/users/{{ u.id }}/deactivate"
+                    onsubmit="return confirm('Деактивировать пользователя {{ u.username }}?')"
+                    style="display:inline">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit"
+                        style="padding:4px 10px;font-size:12px;background:#dc2626;">
+                  Деакт.
+                </button>
+              </form>
+              {% elif not u.active %}
+              <span style="color:#9ca3af;font-size:12px;">неактивен</span>
+              {% endif %}
+            </td>
           </tr>
           {% endfor %}
         </tbody>
