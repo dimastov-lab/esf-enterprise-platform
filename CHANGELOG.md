@@ -1,25 +1,18 @@
 # CHANGELOG.md
 
-## v1.2.2 — Credential security sprint (2026-08-06)
+## v1.2.2 — TD-021: httpx → aios_sdk (2026-08-06)
 
-Closes TD-023 and TD-027.
-
-- **TD-023**: `Settings.validate_for_runtime()` raises `RuntimeError` when
-  `AIOS_ENABLED=true` and `ENVIRONMENT=production` if `AIOS_BASE_URL` does not start
-  with `https://`. Dev mode (`ENVIRONMENT=development`) is exempt. 4 tests.
-- **TD-027a**: `MAX_TTL_DAYS = 90` constant in `CredentialService`; `issue()` raises
-  `ValueError` when `expires_in_days > MAX_TTL_DAYS`; router converts this to HTTP 422
-  with a descriptive message. 2 tests.
-- **TD-027b**: `CREDENTIAL_ISSUED` and `CREDENTIAL_REVOKED` audit action constants replace
-  the misused `LOGIN`/`LOGOUT` actions in `auth.py` credential routes. Audit metadata
-  now includes `credential_id`, `label`, and `expires_in_days` (issue) or `credential_id`
-  (revoke). 3 tests.
-- **TD-027c**: `AuthService.deactivate_user(user_id)` sets `is_active=False`; raises
-  `ValueError` if not found or already inactive. `POST /admin/users/{id}/deactivate`
-  (admin-only, CSRF-protected) calls `deactivate_user` then `revoke_all_for_user` and
-  emits a `CREDENTIAL_REVOKED` audit row with `deactivated_user_id` + revoked count.
-  "Деакт." button added to `admin_users.html` (non-admin active users only). 7 tests.
-- Suite: **195 tests pass**.
+- `AIOSBridgeService` replaced raw `httpx` calls with `aios_sdk.AIOSClient`:
+  - `task_create/start/escalate/complete/cancel` → `sdk.tasks.*`
+  - `memory_create` → `sdk.memories.create_in_workspace` / `create_global`
+  - `ping` → `sdk.health.get()`
+  - `identity_verify` keeps a direct httpx call (identity endpoint not in SDK)
+- Python target bumped 3.11 → 3.12: `Dockerfile` (`python:3.12-slim-bookworm`),
+  `pyproject.toml` (`target-version = "py312"`), `requirements.txt` header comment.
+- Dev venv recreated with Python 3.12; `aios_sdk` installed as editable dep.
+- Public interface unchanged: `get_bridge()` / `reset_bridge()` / all method
+  signatures are identical; no callers modified.
+- TD-021 closed. Suite: **185 tests pass**.
 
 ---
 

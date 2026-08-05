@@ -150,13 +150,13 @@ with `aios_task_id`, snapshots with `aios_memory_id`). Template `admin_aios.html
 consistent with admin_audit style. 10 tests. `config.VERSION = "1.2.0"`.
 Suite: **179 tests pass** (2026-08-05).
 
-v1.2.2 — Credential security sprint (2026-08-06). TD-023 + TD-027 resolved.
-TD-023: `Settings.validate_for_runtime()` rejects `http://` AIOS_BASE_URL in
-production (Bearer token relay risk). TD-027: `MAX_TTL_DAYS=90` cap in
-`CredentialService.issue()` (HTTP 422 on overflow); `CREDENTIAL_ISSUED` and
-`CREDENTIAL_REVOKED` audit constants replace misused LOGIN/LOGOUT; `POST
-/admin/users/{id}/deactivate` (admin-only, CSRF-protected): sets `is_active=False`
-and calls `revoke_all_for_user()`; "Деакт." button in admin_users.html.
-Suite: **195 tests pass** (2026-08-06). Branch: feat/td027-td023-credential-security.
+v1.2.2 — TD-021 SDK adoption (2026-08-06). `AIOSBridgeService` rewritten to use
+`aios_sdk.AIOSClient` instead of hand-rolled httpx: task lifecycle via
+`sdk.tasks.*`, memory create via `sdk.memories.create_in_workspace` /
+`create_global`, ping via `sdk.health.get()`. `identity_verify` keeps a direct
+httpx call (identity endpoint not in SDK). Python target bumped 3.11 → 3.12
+(Dockerfile, pyproject.toml, requirements.txt). Public interface unchanged;
+all callers and all 185 tests unaffected. TD-021 closed.
+Suite: **185 tests pass** (2026-08-06). Alembic head: `8d5e97b2590b`.
 
 Awaiting direction.
