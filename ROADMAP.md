@@ -53,7 +53,13 @@
       to ESF JWT when AIOS unavailable; `esf_` credentials bypass AIOS
     - 51 tests added; suite: **169 tests pass**
 
-Status: **v1.2.0** — AIOS convergence layers complete. All three integration layers
+27. v1.2.1 — AIOS operability (2026-08-05):
+    - `AIOSBridgeService.ping()` + `_NoOpBridge.ping()` stub
+    - `GET /admin/aios` admin status page: enabled flag, connectivity badge (ping),
+      base URL / workspace / token presence, per-entity link-count stats
+    - `config.VERSION` → `"1.2.0"`; 10 tests; suite: **179 tests pass**
+
+Status: **v1.2.1** — AIOS convergence + operability complete. All three integration layers
 (Tasks / Identity / Memories) are live behind `AIOS_ENABLED` flag; behaviour
 when flag is false is identical to v1.1.6. Remaining work is owner-only P0
 (ACTION_REQUIRED.md) and the deliberately out-of-scope items below.

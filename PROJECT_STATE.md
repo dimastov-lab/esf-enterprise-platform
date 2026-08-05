@@ -142,4 +142,12 @@ Security review hardening applied (commit 89ce7a3, 2026-08-05):
 
 Suite: **169 tests pass** (2026-08-05). Branch: main.
 
+v1.2.1 — AIOS operability (2026-08-05). `AIOSBridgeService.ping()`: GET
+`/api/v1/health`, returns true on <500, false on network error; `_NoOpBridge.ping()`
+returns false. `GET /admin/aios` (admin-only): shows enabled/disabled badge, base URL,
+workspace ID, token presence, live connectivity (ping), per-entity link counts (docs
+with `aios_task_id`, snapshots with `aios_memory_id`). Template `admin_aios.html`
+consistent with admin_audit style. 10 tests. `config.VERSION = "1.2.0"`.
+Suite: **179 tests pass** (2026-08-05).
+
 Awaiting direction.

@@ -1,5 +1,23 @@
 # CHANGELOG.md
 
+## v1.2.1 — AIOS operability dashboard (2026-08-05)
+
+- `AIOSBridgeService.ping()`: lightweight GET `/api/v1/health` (3 s timeout),
+  returns `True` on any sub-500 response, `False` on network error.
+- `_NoOpBridge.ping()`: returns `False` (AIOS disabled — no connection).
+- `GET /admin/aios` (admin-only): live status page showing AIOS_ENABLED badge,
+  base URL, workspace ID, token presence, connectivity result (ping, only when
+  enabled), and per-entity integration stats (docs with `aios_task_id` / total,
+  snapshots with `aios_memory_id` / total, percent linked).
+- `admin_aios.html` template (badge-on/off/ok/warn/na colour scheme).
+- `config.VERSION` → `"1.2.0"`.
+- 10 tests: RBAC (admin pass / issuer 403 / anon redirect), disabled/enabled
+  display, ping success/failure badges, stats section, no-ping-when-disabled,
+  `_NoOpBridge.ping()`.
+- Suite: **179 tests pass**.
+
+---
+
 ## v1.2.0 — AIOS Core convergence: AUTH-01 + Layers 1/2/3 (2026-08-05)
 
 Full integration of the ESF platform with AIOS Core per ADR-0015
