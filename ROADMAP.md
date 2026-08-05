@@ -42,8 +42,21 @@
     prod image tag, CLAUDE.md status), TD-004 executed (dev-preview route + sample data
     deleted), TD-020 closed by-design, test-count history reconciled in PROJECT_STATE
 
-Status: MVP feature-complete (v1.1.6). Regression suite: **104 tests pass** (verified 2026-08-01).
-**The debt register has zero open items.** Remaining work is owner-only P0 (see ACTION_REQUIRED.md).
+26. v1.2.0 — AIOS Core convergence (ADR-0015), 2026-08-05:
+    - AUTH-01: long-lived PG-backed API credentials (`esf_` prefix, SHA-256 hash,
+      optional expiry, revoke, last_used_at touch) — migration d0e1f2a3b4c5
+    - Layer 1 (Tasks): fire-and-forget AIOS task lifecycle on ESF state transitions;
+      `ESFDocument.aios_task_id` — migration e1f2a3b4c5d6
+    - Layer 3 (Memories): published snapshots written to AIOS Memories before commit;
+      `ESFSnapshot.aios_memory_id`, idempotent via snapshot UUID — migration 9bb4bef2e079
+    - Layer 2 (Identity): AIOS JWT validation in `get_current_api_user`; falls back
+      to ESF JWT when AIOS unavailable; `esf_` credentials bypass AIOS
+    - 51 tests added; suite: **169 tests pass**
+
+Status: **v1.2.0** — AIOS convergence layers complete. All three integration layers
+(Tasks / Identity / Memories) are live behind `AIOS_ENABLED` flag; behaviour
+when flag is false is identical to v1.1.6. Remaining work is owner-only P0
+(ACTION_REQUIRED.md) and the deliberately out-of-scope items below.
 
 Out of scope (require external systems): ГНС/tax-authority integration,
 ЭЦП/digital signature, legal validity.

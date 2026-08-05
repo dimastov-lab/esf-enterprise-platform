@@ -109,4 +109,28 @@ relocated to ~/Desktop/ESF-Private-Materials), **I-2 partially done** (.env.prod
 from repo and Desktop root; value rotation still pending), **I-1 open** (needs the real
 server/domain). See ACTION_REQUIRED.md «Статус».
 
+v1.2.0 — AIOS Core convergence (2026-08-05). AUTH-01 + Layers 1/2/3 complete.
+
+**AUTH-01** (PG-backed API credentials): new `api_credentials` table (migration
+`d0e1f2a3b4c5`); `CredentialService` issue/validate/revoke/list; token format
+`esf_<base64url(32B)>` (SHA-256 hashed, shown once); REST endpoints
+`POST/GET/DELETE /auth/credentials`; `get_current_api_user` routes `esf_` tokens to
+PG path. 23 tests.
+
+**Layer 1 — Tasks**: `AIOSBridgeService` + `_NoOpBridge`; `ESFDocument.aios_task_id`
+(migration `e1f2a3b4c5d6`); `ESFService` wired at create/validate/publish/cancel.
+Config: `AIOS_ENABLED`, `AIOS_BASE_URL`, `AIOS_TOKEN(_FILE)`, `AIOS_WORKSPACE_ID`. 9 tests.
+
+**Layer 3 — Memories**: `AIOSBridgeService.memory_create()`; `ESFSnapshot.aios_memory_id`
+(migration `9bb4bef2e079`); called before commit in `publish()` (INSERT, not UPDATE);
+`snapshot_service.make_snapshot()` now generates UUID in Python (pre-flush accessible).
+10 tests.
+
+**Layer 2 — Identity**: `AIOSBridgeService.identity_verify(user_token)` (`GET
+/api/v1/identity/me`); wired in `get_current_api_user`: AIOS first → ESF JWT fallback
+(graceful degradation when AIOS down); `esf_` credentials bypass AIOS. 9 tests.
+
+Alembic head: `8d5e97b2590b`. Suite: **169 tests pass** (2026-08-05).
+All AIOS paths are gated on `AIOS_ENABLED=true`; standalone behaviour unchanged.
+
 Awaiting direction.

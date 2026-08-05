@@ -1,5 +1,71 @@
 # CHANGELOG.md
 
+## v1.2.0 — AIOS Core convergence: AUTH-01 + Layers 1/2/3 (2026-08-05)
+
+Full integration of the ESF platform with AIOS Core per ADR-0015
+("ESF as domain module on AIOS"). No breaking changes when `AIOS_ENABLED=false`
+(the default); all new paths are safely no-op in standalone mode.
+
+### AUTH-01 — Long-lived PG-backed API credentials
+
+- New table `api_credentials` (migration `d0e1f2a3b4c5`): `id`, `user_id` (FK),
+  `token_hash` (SHA-256, unique), `label`, `expires_at` (NULL = no expiry),
+  `revoked_at`, `last_used_at`.
+- Token format: `esf_<base64url(32B)>` (secret-scanner-detectable prefix; raw
+  token shown once only at issue time).
+- `CredentialService`: `issue`, `validate` (touches `last_used_at`), `revoke`,
+  `revoke_all_for_user`, `list_for_user`.
+- REST endpoints: `POST /auth/credentials`, `GET /auth/credentials`,
+  `DELETE /auth/credentials/{id}`.
+- `get_current_api_user` in `security.py` accepts `esf_` tokens and routes them
+  to the PG path; everything else falls through to the JWT path.
+- 23 tests added.
+
+### Layer 1 — AIOS Tasks
+
+- `AIOSBridgeService`: `task_create`, `task_start`, `task_escalate`,
+  `task_complete`, `task_cancel` — synchronous httpx calls, fire-and-forget
+  (exceptions logged at WARNING, never propagated).
+- `_NoOpBridge`: returned when `AIOS_ENABLED=false`; all methods are silent no-ops.
+- `ESFDocument.aios_task_id` column (migration `e1f2a3b4c5d6`).
+- `ESFService` wired: `create_draft` → `task_create`; `validate` (success) →
+  `task_start`; `publish` → `task_escalate` + `task_complete`; `cancel` →
+  `task_cancel`.
+- Config additions: `AIOS_ENABLED`, `AIOS_BASE_URL`, `AIOS_TOKEN` / `AIOS_TOKEN_FILE`,
+  `AIOS_WORKSPACE_ID`.
+- 9 tests added.
+
+### Layer 3 — AIOS Memories
+
+- `AIOSBridgeService.memory_create(snapshot_uuid, sha256, payload)`: POST
+  `/api/v1/memories`; idempotent via `Idempotency-Key: esf-snapshot-<uuid>`.
+- `_NoOpBridge.memory_create()`: silent no-op.
+- `ESFSnapshot.aios_memory_id` column (migration `9bb4bef2e079`).
+- `ESFService.publish()`: calls `memory_create` **before** `repo.commit()` so
+  `aios_memory_id` is part of the INSERT (snapshot is immutable after commit).
+- `snapshot_service.make_snapshot()`: UUID now assigned in Python at object
+  construction (was DB-side default; needed to be readable before flush).
+- 10 tests added.
+
+### Layer 2 — AIOS Identity
+
+- `AIOSBridgeService.identity_verify(user_token)`: GET `/api/v1/identity/me`
+  using the *caller's* token (not the ESF service-account token); returns
+  identity claims dict on 200, None on error or unreachability.
+- `_NoOpBridge.identity_verify()`: returns None.
+- `get_current_api_user()`: when `AIOS_ENABLED=true` and token is not `esf_`:
+  AIOS Identity tried first; claims returned + local user found → authenticated;
+  claims returned + unknown `preferred_username`/`sub` → 401; None returned
+  (AIOS down/token not AIOS) → graceful fallback to ESF JWT.
+  `esf_`-prefixed PG credentials bypass AIOS entirely.
+- 9 tests added.
+
+### Suite
+
+169 tests pass (was 104 at v1.1.6). All new tests are transaction-isolated.
+
+---
+
 ## v1.1.6 — housekeeping: version truth-up, TD-004/TD-020 closed (2026-08-01)
 
 Zero behavior change for real users; the debt register reaches zero open items.

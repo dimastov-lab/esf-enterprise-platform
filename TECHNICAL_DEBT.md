@@ -253,6 +253,41 @@
   conventionally written inside it. The directory keeps storing/searching `bik`; adding a
   document-model column would diverge from the form. Reopen only if the official form changes.
 
+---
+
+## TD-021 — AIOS SDK adoption when Python ≥ 3.10
+
+- **ID:** TD-021
+- **Severity:** Low
+- **Module:** `backend/app/core/aios_bridge.py`
+- **Description:** `AIOSBridgeService` uses raw `httpx` calls instead of `aios_sdk`
+  because the local dev venv is Python 3.9 (`aios_sdk` requires `ParamSpec` from
+  `typing`, available only in Python ≥ 3.10). The Docker runtime is Python 3.11
+  and could use the SDK today.
+- **Risk:** Minor — the httpx implementation is a faithful hand-written facade;
+  no correctness risk, just maintenance divergence from the SDK contract over time.
+- **Fix Plan:** Once the local venv is upgraded to 3.10+ (or when the SDK is published
+  as a pinned wheel), replace httpx calls in `AIOSBridgeService` with `AIOSClient`
+  from `aios_sdk`. Callers (`get_bridge()`, tests) need no changes.
+- **Status:** Open. No timeline yet.
+
+## TD-022 — AIOS Layer 2: auto-provision AIOS users in ESF
+
+- **ID:** TD-022
+- **Severity:** Low
+- **Module:** `backend/app/core/security.py`
+- **Description:** `get_current_api_user` validates AIOS identity but only maps
+  to *existing* ESF users (by `username = preferred_username/sub`). Unknown AIOS
+  users get a 401 even though AIOS confirms their identity.
+- **Risk:** Minor — for the current use case (ESF service-to-service with AIOS)
+  all users have matching local accounts. Risk increases when ESF is opened to
+  external AIOS tenants.
+- **Fix Plan:** Add an opt-in `AIOS_AUTO_PROVISION=true` mode that creates a minimal
+  `User` row (username from AIOS sub, disabled password) on first successful AIOS
+  identity verification. Requires a migration for `User.external_id` or `User.email`
+  as the stable anchor.
+- **Status:** Open. Deferred until multi-tenant scope is defined.
+
 ## Rule
 
 Every technical debt item must include:
