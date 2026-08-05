@@ -4,6 +4,7 @@ Importing this package imports every model, ensuring `Base.metadata` is fully
 populated (required for Alembic autogenerate and for relationship resolution).
 """
 from app.db.base import Base
+from app.models.api_credential import ApiCredential
 from app.models.audit_log import AuditLog
 from app.models.counterparty import Counterparty
 from app.models.enums import DocumentStatus, PartyType
@@ -25,6 +26,7 @@ __all__ = [
     "User",
     "Role",
     "user_roles",
+    "ApiCredential",
     "Organization",
     "ESFDocument",
     "ESFParty",
