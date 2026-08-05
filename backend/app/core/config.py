@@ -160,6 +160,15 @@ class Settings:
                 "(salyk.kg). Documents issued by this platform are non-official and "
                 "must verify against this deployment's own host, not the state system."
             )
+        if self.AIOS_ENABLED:
+            aios_url = (self.AIOS_BASE_URL or "").strip()
+            if not aios_url.startswith("https://"):
+                raise RuntimeError(
+                    "AIOS_BASE_URL must start with https:// when AIOS_ENABLED=true "
+                    "and ENVIRONMENT is production. Bearer tokens are relayed to this "
+                    "URL; plaintext HTTP would expose them on the network. "
+                    f"Current value: {aios_url!r}"
+                )
 
 
 settings = Settings()
