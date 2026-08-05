@@ -1,0 +1,688 @@
+<title>Досье соответствия НБКР/ФАТФ — AML Governance Platform</title>
+<style>
+  :root {
+    --navy:    #0D1B2E;
+    --navy-m:  #162438;
+    --navy-l:  #1E3050;
+    --teal:    #0B9AA6;
+    --teal-dk: #077880;
+    --teal-lt: #D6F0F2;
+    --red:     #B71C1C;
+    --green:   #1B5E20;
+    --green-lt:#E8F5E9;
+    --amber:   #E65100;
+    --amber-lt:#FFF3E0;
+    --text:    #1A2535;
+    --muted:   #536070;
+    --faint:   #8FA0B0;
+    --rule:    #D4DCE6;
+    --bg:      #F4F7FA;
+    --surface: #FFFFFF;
+    --chip-bg: #EEF2F7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --navy:#061120; --navy-m:#0D1B2E; --navy-l:#162438;
+      --teal:#0FBDCC; --teal-dk:#0B9AA6; --teal-lt:#0D2B2E;
+      --red:#EF5350; --green:#4CAF50; --green-lt:#0A1F0A;
+      --amber:#FFA726; --amber-lt:#1C0F00;
+      --text:#D0DDE8; --muted:#7A92A8; --faint:#4A6070;
+      --rule:#1E2E40; --bg:#080F18; --surface:#0D1B2E; --chip-bg:#162438;
+    }
+  }
+  :root[data-theme="dark"] {
+    --navy:#061120; --navy-m:#0D1B2E; --navy-l:#162438;
+    --teal:#0FBDCC; --teal-lt:#0D2B2E; --red:#EF5350;
+    --green:#4CAF50; --green-lt:#0A1F0A; --amber:#FFA726; --amber-lt:#1C0F00;
+    --text:#D0DDE8; --muted:#7A92A8; --faint:#4A6070;
+    --rule:#1E2E40; --bg:#080F18; --surface:#0D1B2E; --chip-bg:#162438;
+  }
+  :root[data-theme="light"] {
+    --navy:#0D1B2E; --navy-m:#162438; --navy-l:#1E3050;
+    --teal:#0B9AA6; --teal-lt:#D6F0F2; --red:#B71C1C;
+    --green:#1B5E20; --green-lt:#E8F5E9; --amber:#E65100; --amber-lt:#FFF3E0;
+    --text:#1A2535; --muted:#536070; --faint:#8FA0B0;
+    --rule:#D4DCE6; --bg:#F4F7FA; --surface:#FFFFFF; --chip-bg:#EEF2F7;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-size: 13.5px;
+    line-height: 1.6;
+    display: flex;
+    justify-content: center;
+    padding: 32px 16px 80px;
+  }
+  .doc { width: 100%; max-width: 760px; }
+
+  /* ── MASTHEAD ── */
+  .masthead {
+    background: var(--navy);
+    padding: 28px 36px 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .masthead::after {
+    content: '';
+    position: absolute;
+    right: -20px; top: -20px;
+    width: 200px; height: 200px;
+    background: radial-gradient(circle, rgba(11,154,166,0.08) 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .mh-top { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .mh-brand { display: flex; align-items: center; gap: 10px; }
+  .mh-icon {
+    width: 32px; height: 32px;
+    border: 1.5px solid var(--teal);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .mh-name { font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255,255,255,0.85); }
+  .mh-sub  { font-size: 10px; color: var(--teal); margin-top: 1px; letter-spacing: 0.06em; }
+  .mh-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip {
+    font-size: 10px; font-weight: 600; letter-spacing: 0.08em;
+    text-transform: uppercase; padding: 4px 10px;
+    border: 1px solid rgba(11,154,166,0.35);
+    color: var(--teal);
+    white-space: nowrap;
+  }
+  .mh-title {
+    margin-top: 22px;
+    font-family: Georgia, serif;
+    font-size: 22px;
+    font-weight: 700;
+    color: #fff;
+    line-height: 1.3;
+    text-wrap: balance;
+    max-width: 560px;
+  }
+  .mh-deck { margin-top: 8px; font-size: 13px; color: rgba(208,221,232,0.7); max-width: 540px; line-height: 1.55; }
+  .teal-rule { width: 36px; height: 2px; background: var(--teal); margin-top: 18px; }
+
+  /* ── SECTION CHROME ── */
+  .section {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-top: none;
+    padding: 26px 36px;
+  }
+  .section + .section { border-top: none; }
+  .section-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+  .section-num {
+    font-family: Georgia, serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--teal);
+    min-width: 20px;
+  }
+  .section-eyebrow {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.13em;
+    text-transform: uppercase; color: var(--teal);
+  }
+  .section-title {
+    font-family: Georgia, serif;
+    font-size: 16px; font-weight: 700;
+    color: var(--text); text-wrap: balance;
+  }
+  .lead {
+    font-size: 13.5px; color: var(--muted); line-height: 1.65;
+    margin-bottom: 18px;
+  }
+
+  /* ── COVERAGE TABLE ── */
+  .coverage { width: 100%; border-collapse: collapse; margin-bottom: 6px; }
+  .coverage thead th {
+    background: var(--chip-bg);
+    font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--muted);
+    text-align: left; padding: 8px 10px;
+    border-bottom: 1px solid var(--rule);
+  }
+  .coverage tbody td {
+    font-size: 12px; color: var(--text);
+    padding: 9px 10px;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+  .coverage tbody tr:last-child td { border-bottom: none; }
+  .coverage tbody tr:hover td { background: var(--chip-bg); }
+  .ref-tag {
+    display: inline-block;
+    background: var(--chip-bg);
+    color: var(--muted);
+    font-size: 10px; font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+  .pass {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--green-lt);
+    color: var(--green);
+    font-size: 10px; font-weight: 700;
+    padding: 2px 7px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .partial {
+    background: var(--amber-lt); color: var(--amber);
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 10px; font-weight: 700;
+    padding: 2px 7px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .group-header td {
+    background: var(--navy-m);
+    color: var(--teal);
+    font-size: 10px; font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    padding: 6px 10px;
+  }
+
+  /* ── SECURITY GRID ── */
+  .sec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .sec-card {
+    border: 1px solid var(--rule);
+    padding: 14px 16px;
+    background: var(--bg);
+  }
+  .sec-card-icon { color: var(--teal); font-size: 16px; margin-bottom: 8px; }
+  .sec-card h4 { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 5px; }
+  .sec-card p { font-size: 11.5px; color: var(--muted); line-height: 1.5; }
+  .sec-spec {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 14px;
+  }
+  .spec-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 12px;
+  }
+  .spec-label { color: var(--muted); min-width: 160px; flex-shrink: 0; }
+  .spec-val { color: var(--text); font-weight: 600; }
+
+  /* ── AUDIT TRAIL ── */
+  .chain {
+    display: flex;
+    gap: 0;
+    margin-top: 14px;
+    flex-wrap: wrap;
+  }
+  .chain-link {
+    flex: 1;
+    min-width: 120px;
+    padding: 12px 14px;
+    border: 1px solid var(--rule);
+    border-right: none;
+    position: relative;
+  }
+  .chain-link:last-child { border-right: 1px solid var(--rule); }
+  .chain-link::after {
+    content: '→';
+    position: absolute;
+    right: -10px; top: 50%;
+    transform: translateY(-50%);
+    color: var(--teal);
+    font-size: 12px;
+    z-index: 1;
+    background: var(--surface);
+    padding: 2px 0;
+  }
+  .chain-link:last-child::after { display: none; }
+  .cl-title { font-size: 11px; font-weight: 700; color: var(--text); }
+  .cl-desc  { font-size: 10.5px; color: var(--muted); margin-top: 4px; line-height: 1.4; }
+
+  /* ── FAQ ── */
+  .faq-item { padding: 14px 0; border-bottom: 1px solid var(--rule); }
+  .faq-item:last-child { border-bottom: none; }
+  .faq-q {
+    font-size: 13px; font-weight: 700; color: var(--text);
+    margin-bottom: 6px;
+    display: flex; gap: 8px; align-items: flex-start;
+  }
+  .faq-q-icon { color: var(--teal); flex-shrink: 0; font-style: normal; }
+  .faq-a { font-size: 12.5px; color: var(--muted); line-height: 1.6; padding-left: 22px; }
+
+  /* ── REFERENCE CASE ── */
+  .ref-case {
+    background: var(--chip-bg);
+    border: 1px solid var(--rule);
+    border-left: 3px solid var(--teal);
+    padding: 14px 18px;
+    margin-top: 14px;
+  }
+  .ref-case h4 { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 5px; }
+  .ref-case p { font-size: 12px; color: var(--muted); line-height: 1.55; }
+
+  /* ── CTA ── */
+  .cta-bar {
+    background: var(--navy-m);
+    border: 1px solid var(--rule);
+    border-top: none;
+    padding: 22px 36px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .cta-text h3 { font-family: Georgia, serif; font-size: 15px; font-weight: 700; color: #fff; }
+  .cta-text p  { font-size: 12px; color: rgba(208,221,232,0.6); margin-top: 3px; }
+  .btn {
+    background: var(--teal);
+    color: #fff;
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    padding: 9px 20px;
+    border: none; cursor: pointer;
+  }
+  .btn:hover { opacity: 0.87; }
+  .btn:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+  .contact { font-size: 11px; color: rgba(208,221,232,0.5); }
+  .contact a { color: var(--teal); text-decoration: none; }
+
+  /* ── FOOTER ── */
+  .doc-footer {
+    border: 1px solid var(--rule);
+    border-top: none;
+    background: var(--bg);
+    padding: 10px 36px;
+    display: flex; justify-content: space-between;
+    font-size: 10px; color: var(--faint);
+    gap: 12px; flex-wrap: wrap;
+  }
+
+  hr.divider { border: none; border-top: 1px solid var(--rule); margin: 20px 0; }
+
+  @media (max-width: 560px) {
+    .masthead, .section, .cta-bar, .doc-footer { padding-left: 18px; padding-right: 18px; }
+    .sec-grid { grid-template-columns: 1fr; }
+    .chain { flex-direction: column; }
+    .chain-link { border-right: 1px solid var(--rule); border-bottom: none; }
+    .chain-link:last-child { border-bottom: 1px solid var(--rule); }
+    .chain-link::after { display: none; }
+    .coverage { font-size: 11.5px; }
+  }
+</style>
+
+<main class="doc" role="main">
+<h2 style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">
+  Досье соответствия НБКР/ФАТФ: регуляторное покрытие, архитектура безопасности, аудиторный след — для CCO/MLRO банка КР
+</h2>
+
+<!-- MASTHEAD -->
+<header class="masthead">
+  <div class="mh-top">
+    <div class="mh-brand">
+      <div class="mh-icon">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+          <rect x="1" y="1" width="6" height="6" stroke="#0B9AA6" stroke-width="1.4"/>
+          <rect x="9" y="1" width="6" height="6" stroke="#0B9AA6" stroke-width="1.4" opacity=".5"/>
+          <rect x="1" y="9" width="6" height="6" stroke="#0B9AA6" stroke-width="1.4" opacity=".5"/>
+          <rect x="9" y="9" width="6" height="6" stroke="#0B9AA6" stroke-width="1.4"/>
+        </svg>
+      </div>
+      <div>
+        <div class="mh-name">Верис ОсОО</div>
+        <div class="mh-sub">AML Governance Platform · Кыргызская Республика</div>
+      </div>
+    </div>
+    <div class="mh-chips">
+      <div class="chip">НБКР</div>
+      <div class="chip">ФАТФ Rec.</div>
+      <div class="chip">Закон КР №80</div>
+    </div>
+  </div>
+  <div class="mh-title">Досье соответствия регуляторным требованиям</div>
+  <div class="mh-deck">
+    Документ подготовлен для службы комплаенса банка. Содержит матрицу покрытия требований НБКР и ФАТФ,
+    описание архитектуры безопасности данных, модель аудиторного следа и ответы на типичные вопросы
+    банковского прокьюремента.
+  </div>
+  <div class="teal-rule"></div>
+</header>
+
+<!-- 1. COVERAGE MATRIX -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">01</div>
+    <div>
+      <div class="section-eyebrow">Регуляторное покрытие</div>
+      <div class="section-title">Матрица соответствия требованиям</div>
+    </div>
+  </div>
+  <p class="lead">
+    Платформа разрабатывалась на основе анализа 58 типовых нарушений в банках КР.
+    Каждое требование закреплено в конкретном функциональном блоке с измеримым критерием выполнения.
+  </p>
+  <div style="overflow-x:auto">
+    <table class="coverage">
+      <thead>
+        <tr>
+          <th style="width:35%">Требование</th>
+          <th style="width:18%">Ссылка</th>
+          <th style="width:35%">Как закрыто платформой</th>
+          <th style="width:12%">Статус</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr class="group-header"><td colspan="4">Закон КР №80 «О ПФТ/ЛПД» (ред. 2022)</td></tr>
+        <tr>
+          <td>Программа внутреннего контроля по ПОД/ФТ</td>
+          <td><span class="ref-tag">Ст. 9</span></td>
+          <td>37 мер контроля, настроенных под профиль банка; ведётся в Системе как живой документ</td>
+          <td><span class="pass">✓ PASS</span></td>
+        </tr>
+        <tr>
+          <td>Мониторинг операций и выявление подозрительных</td>
+          <td><span class="ref-tag">Ст. 10</span></td>
+          <td>18 правил мониторинга транзакций в реальном времени; авто-тегирование алертов по уровню риска</td>
+          <td><span class="pass">✓ PASS</span></td>
+        </tr>
+        <tr>
+          <td>Сообщение о подозрительных операциях (СПО)</td>
+          <td><span class="ref-tag">Ст. 12</span></td>
+          <td>Автоматическое формирование проекта СПО с доказательной базой; отправка в ФСФМ КР через защищённый канал</td>
+          <td><span class="pass">✓ PASS</span></td>
+        </tr>
+        <tr>
+          <td>Хранение документов и записей (5 лет)</td>
+          <td><span class="ref-tag">Ст. 13</span></td>
+          <td>Неизменяемый аудиторный след с HMAC-цепочкой; гарантированное хранение 7 лет</td>
+          <td><span class="pass">✓ PASS</span></td>
+        </tr>
+        <tr>
+          <td>Оценка рисков клиентов (KYC/CDD)</td>
+          <td><span class="ref-tag">Ст. 5–7</span></td>
+          <td>Риск-скоринг клиентов с обновлением при каждой транзакции; сигналы для усиленной проверки EDD</td>
+          <td><span class="pass">✓ PASS</span></td>
+        </tr>
+        <tr>
+          <td>Обучение сотрудников</td>
+          <td><span class="ref-tag">Ст. 9.6</span></td>
+          <td>Встроенный модуль обучения с тестированием и журналом прохождения</td>
+          <td><span class="partial">~ В пилоте</span></td>
+        </tr>
+
+        <tr class="group-header"><td colspan="4">Постановления НБКР (Инструкция по организации системы ПОД/ФТ)</td></tr>
+        <tr>
+          <td>Назначение ответственного сотрудника МЛРО</td>
+          <td><span class="ref-tag">п. 4</span></td>
+          <td>Выделенная роль MLRO с полным доступом к рабочей очереди и отчётности; история действий MLRO</td>
+          <td><span class="pass">✓ PASS</span></td>
+        </tr>
+        <tr>
+          <td>Двухуровневый контроль решений по алертам</td>
+          <td><span class="ref-tag">п. 6</span></td>
+          <td>Workflow: аналитик → MLRO; каждое решение подписывается ролью и фиксируется в аудит-логе</td>
+          <td><span class="pass">✓ PASS</span></td>
+        </tr>
+        <tr>
+          <td>Регуляторная отчётность в НБКР</td>
+          <td><span class="ref-tag">п. 14</span></td>
+          <td>Отчёты в требуемых форматах НБКР формируются автоматически; архив за весь период лицензии</td>
+          <td><span class="pass">✓ PASS</span></td>
+        </tr>
+        <tr>
+          <td>Идентификация бенефициарных владельцев</td>
+          <td><span class="ref-tag">п. 8</span></td>
+          <td>Проверка UBO через интеграцию с реестрами + ручная верификация с журналом подтверждений</td>
+          <td><span class="partial">~ Настройка</span></td>
+        </tr>
+
+        <tr class="group-header"><td colspan="4">Рекомендации ФАТФ (ключевые)</td></tr>
+        <tr>
+          <td>R.10 — Надлежащая проверка клиентов (CDD)</td>
+          <td><span class="ref-tag">R.10</span></td>
+          <td>Риск-профили + пороги для упрощённой (SDD) и усиленной (EDD) проверки; обновление при изменении риска</td>
+          <td><span class="pass">✓ PASS</span></td>
+        </tr>
+        <tr>
+          <td>R.20 — Сообщение о подозрительных транзакциях</td>
+          <td><span class="ref-tag">R.20</span></td>
+          <td>Авто-детектирование + авторасчёт обоснования; срок от детекта до подачи СПО отслеживается</td>
+          <td><span class="pass">✓ PASS</span></td>
+        </tr>
+        <tr>
+          <td>R.11 — Хранение записей</td>
+          <td><span class="ref-tag">R.11</span></td>
+          <td>7-летнее хранение всех записей комплаенса; неизменяемость подтверждается криптографической цепочкой</td>
+          <td><span class="pass">✓ PASS</span></td>
+        </tr>
+        <tr>
+          <td>R.15 — Новые технологии (ML/DL риски)</td>
+          <td><span class="ref-tag">R.15</span></td>
+          <td>Риск-оценка новых каналов и продуктов перед запуском; отчёт о технологическом риске</td>
+          <td><span class="partial">~ В пилоте</span></td>
+        </tr>
+        <tr>
+          <td>R.26/R.27 — Надзор регулятора</td>
+          <td><span class="ref-tag">R.26</span></td>
+          <td>Дашборд готовности к проверке НБКР; экспорт полного пакета документов для инспектора одним кликом</td>
+          <td><span class="pass">✓ PASS</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="font-size:11px; color:var(--muted); margin-top:8px">
+    ✓ PASS — покрыто в базовой конфигурации · ~ В пилоте — настраивается под конкретный банк в период пилота
+  </p>
+</div>
+
+<!-- 2. DATA SECURITY -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">02</div>
+    <div>
+      <div class="section-eyebrow">Безопасность данных</div>
+      <div class="section-title">Где хранятся данные и как они защищены</div>
+    </div>
+  </div>
+  <p class="lead">
+    Данные клиентов банка никогда не покидают периметр банковской инфраструктуры.
+    Платформа развёртывается on-premise или в защищённом облаке с требованием локализации в КР.
+  </p>
+  <div class="sec-grid">
+    <div class="sec-card">
+      <div class="sec-card-icon">🏛</div>
+      <h4>On-premise развёртывание</h4>
+      <p>Сервер платформы находится в серверной банка или в ЦОД банка на территории КР. Данные физически не выходят за контур сети банка.</p>
+    </div>
+    <div class="sec-card">
+      <div class="sec-card-icon">🔐</div>
+      <h4>Шифрование</h4>
+      <p>Данные в покое: AES-256. Данные в транзите: TLS 1.3. Ключи шифрования хранятся в HSM банка, не у поставщика.</p>
+    </div>
+    <div class="sec-card">
+      <div class="sec-card-icon">🔑</div>
+      <h4>Управление доступом</h4>
+      <p>RBAC с ролями: аналитик, MLRO, администратор. Все действия пользователей фиксируются в неизменяемом журнале. MFA обязательна для MLRO.</p>
+    </div>
+    <div class="sec-card">
+      <div class="sec-card-icon">🗑</div>
+      <h4>Расторжение договора</h4>
+      <p>При расторжении: полный экспорт всех данных в форматах CSV/XML, криптографически верифицированных. Безопасное удаление с подтверждением в течение 30 дней.</p>
+    </div>
+  </div>
+  <div class="sec-spec">
+    <div class="spec-row"><span class="spec-label">Локализация данных:</span><span class="spec-val">100 % — в инфраструктуре банка на территории КР</span></div>
+    <div class="spec-row"><span class="spec-label">Шифрование в покое:</span><span class="spec-val">AES-256-GCM</span></div>
+    <div class="spec-row"><span class="spec-label">Шифрование в транзите:</span><span class="spec-val">TLS 1.3 (ECDHE + AES-GCM)</span></div>
+    <div class="spec-row"><span class="spec-label">Управление ключами:</span><span class="spec-val">HSM банка; поставщик ключей не имеет</span></div>
+    <div class="spec-row"><span class="spec-label">Хранение записей:</span><span class="spec-val">7 лет (≥ требования НБКР 5 лет)</span></div>
+    <div class="spec-row"><span class="spec-label">Обновления безопасности:</span><span class="spec-val">Patch window ≤ 72 ч для критических; без простоя</span></div>
+  </div>
+</div>
+
+<!-- 3. AUDIT TRAIL -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">03</div>
+    <div>
+      <div class="section-eyebrow">Аудиторный след</div>
+      <div class="section-title">Неизменяемый журнал — доказательная база для НБКР</div>
+    </div>
+  </div>
+  <p class="lead">
+    Каждое событие в Системе записывается в криптографически связанную цепочку.
+    Подделать или удалить запись без обнаружения невозможно — это основа доказательной базы
+    для инспекторов НБКР и ФАТФ.
+  </p>
+  <div class="chain">
+    <div class="chain-link">
+      <div class="cl-title">Событие</div>
+      <div class="cl-desc">Транзакция, алерт, решение MLRO, изменение правила — каждое в отдельной записи</div>
+    </div>
+    <div class="chain-link">
+      <div class="cl-title">Хэш + метаданные</div>
+      <div class="cl-desc">SHA-256 содержимого + timestamp + ID пользователя + роль + предыдущий хэш</div>
+    </div>
+    <div class="chain-link">
+      <div class="cl-title">HMAC-цепочка</div>
+      <div class="cl-desc">Каждая запись связана с предыдущей; разрыв цепочки обнаруживается при любой проверке</div>
+    </div>
+    <div class="chain-link">
+      <div class="cl-title">Якорение</div>
+      <div class="cl-desc">Периодический подписанный снэпшот главы цепочки; экспортируется для независимой верификации</div>
+    </div>
+    <div class="chain-link">
+      <div class="cl-title">Экспорт для НБКР</div>
+      <div class="cl-desc">Полный пакет с криптодоказательством целостности; верифицируется без доступа к Системе</div>
+    </div>
+  </div>
+  <hr class="divider">
+  <p style="font-size:12px; color:var(--muted)">
+    <strong style="color:var(--text)">Гарантия целостности:</strong> если инспектор НБКР сомневается в подлинности записи,
+    он может запустить верификацию цепочки локально — без подключения к Системе и без участия поставщика.
+    Это снимает вопрос «а не подделал ли банк журнал?» полностью.
+  </p>
+</div>
+
+<!-- 4. REFERENCE CASE -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">04</div>
+    <div>
+      <div class="section-eyebrow">Референсный опыт</div>
+      <div class="section-title">Опыт работы с регуляторными системами КР</div>
+    </div>
+  </div>
+  <p class="lead">
+    Команда имеет опыт разработки production-систем для регуляторной среды Кыргызстана.
+  </p>
+  <div class="ref-case">
+    <h4>ESF Platform — электронная счёт-фактура для ГНС КР</h4>
+    <p>
+      Разработана и введена в эксплуатацию платформа для создания, валидации и публикации
+      электронных счетов-фактур (ЭСФ) в соответствии с требованиями Государственной налоговой службы КР.
+      Включает: неизменяемые снэпшоты документов, QR-верификацию на портале salyk.kg,
+      аудиторный след всех операций, PDF-генерацию идентичную официальному формату ГНС.
+      Текущий статус: v1.1.6, production-ready, 104 автотеста.
+    </p>
+  </div>
+  <div class="ref-case" style="margin-top:10px">
+    <h4>AIOS Core — платформа ИИ-оркестрации</h4>
+    <p>
+      Принятое (ACCEPTED) ядро с многоуровневой tenant-изоляцией, Postgres RLS,
+      tamper-evident аудит-трейлом (HMAC + Ed25519-якорь), независимым security-ревью (0 критических).
+      2 400 автотестов. Именно это ядро лежит в основе AML Governance Platform.
+    </p>
+  </div>
+</div>
+
+<!-- 5. FAQ -->
+<div class="section">
+  <div class="section-head">
+    <div class="section-num">05</div>
+    <div>
+      <div class="section-eyebrow">Прокьюремент</div>
+      <div class="section-title">Часто задаваемые вопросы</div>
+    </div>
+  </div>
+
+  <div class="faq-item">
+    <div class="faq-q"><i class="faq-q-icon">Q</i> Нужна ли лицензия НБКР для использования Системы?</div>
+    <div class="faq-a">
+      Нет. Платформа является программным обеспечением для внутреннего контроля банка.
+      Лицензируемая деятельность (банковские операции, управление платежами) выполняется самим банком.
+      Поставщик программного обеспечения лицензии НБКР не требует — аналогично любому другому вендору АБС или BI-решений.
+    </div>
+  </div>
+  <div class="faq-item">
+    <div class="faq-q"><i class="faq-q-icon">Q</i> Как Система интегрируется с нашей АБС?</div>
+    <div class="faq-a">
+      Через REST API. На этапе интеграции (первые 14 дней пилота) настраивается адаптер под вашу АБС.
+      Поддерживаются: прямое подключение к БД (read-only), файловый импорт (CSV/XML), брокер сообщений (Kafka/RabbitMQ).
+      Интеграция не требует изменений в коде АБС.
+    </div>
+  </div>
+  <div class="faq-item">
+    <div class="faq-q"><i class="faq-q-icon">Q</i> Что происходит с данными при расторжении договора?</div>
+    <div class="faq-a">
+      В течение 30 дней после расторжения: полный экспорт всех данных в форматах CSV, XML и JSON
+      с криптографической верификацией целостности. Затем безопасное удаление с подтверждением в письменном виде.
+      Данные в инфраструктуре банка остаются у банка — они никогда и не покидали его контур.
+    </div>
+  </div>
+  <div class="faq-item">
+    <div class="faq-q"><i class="faq-q-icon">Q</i> Как обрабатываются ложноположительные алерты — кто несёт ответственность?</div>
+    <div class="faq-a">
+      Система формирует алерты; окончательное решение всегда принимает уполномоченный сотрудник банка (MLRO или аналитик).
+      Поставщик не принимает решений о подозрительности операций. Ответственность за качество комплаенс-решений
+      остаётся в банке — платформа документирует и автоматизирует процесс, а не заменяет суждение человека.
+    </div>
+  </div>
+  <div class="faq-item">
+    <div class="faq-q"><i class="faq-q-icon">Q</i> Возможна ли работа в тестовом режиме параллельно с существующими процессами?</div>
+    <div class="faq-a">
+      Да, и именно так работает пилот. В первые 30–60 дней Система работает параллельно с текущими
+      процессами банка без их прерывания. Ваша команда сравнивает результаты и убеждается в качестве
+      до любых изменений в регулярных процедурах.
+    </div>
+  </div>
+  <div class="faq-item">
+    <div class="faq-q"><i class="faq-q-icon">Q</i> Каков SLA поддержки?</div>
+    <div class="faq-a">
+      В рамках годовой лицензии: поддержка 8×5 (понедельник–пятница), время реакции ≤ 4 ч на критические инциденты,
+      ≤ 24 ч на стандартные. Обновления правил мониторинга при изменении требований НБКР — в течение 30 дней с момента
+      публикации нормативного акта.
+    </div>
+  </div>
+</div>
+
+<!-- CTA -->
+<div class="cta-bar">
+  <div class="cta-text">
+    <h3>Следующий шаг: 30-минутное демо + подписание LOI</h3>
+    <p>LOI не создаёт финансовых обязательств. Фиксирует только намерение провести пилот на согласованных критериях.</p>
+  </div>
+  <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap">
+    <button class="btn" onclick="sendPrompt('Хочу запросить демо и LOI для AML-пилота')">Запросить демо</button>
+    <div class="contact">
+      Дмитрий Черников<br>
+      <a href="mailto:dimastov@me.com">dimastov@me.com</a>
+    </div>
+  </div>
+</div>
+
+<div class="doc-footer">
+  <span>Конфиденциально · Только для адресата</span>
+  <span>[Название ОсОО] · Август 2026</span>
+  <span>Технические параметры уточняются при интеграции</span>
+</div>
+</main>

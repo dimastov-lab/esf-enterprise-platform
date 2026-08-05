@@ -490,7 +490,18 @@ class ESFService:
             doc.published_at = datetime.now(timezone.utc)   # 6. published_at (in memory)
             self.ensure_qr(doc, commit=False)               # 3. generate QR (no early commit)
             payload = self.serialize(doc)                   # 4. immutable snapshot...
-            self.repo.add_pending(snapshot_service.make_snapshot(doc, payload))
+            snapshot = snapshot_service.make_snapshot(doc, payload)
+            # Layer 3: write to AIOS Memories BEFORE commit so aios_memory_id
+            # is part of the INSERT (snapshot is immutable after commit).
+            try:
+                mem_id = get_bridge().memory_create(
+                    str(snapshot.uuid), snapshot.sha256, payload
+                )
+                if mem_id:
+                    snapshot.aios_memory_id = mem_id
+            except Exception as exc:
+                _log.warning("AIOS memory_create failed for doc %s: %s", doc.id, exc)
+            self.repo.add_pending(snapshot)
             self.repo.commit()                              # 7. commit once
         except IntegrityError:
             # e.g. an esf_number collision that slipped past the guard — surface a
