@@ -9,6 +9,7 @@ on:
     paths:
       - '**.py'
       - 'tools/**'
+  workflow_dispatch:
 
 jobs:
   fitness:
