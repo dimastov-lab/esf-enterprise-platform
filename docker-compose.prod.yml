@@ -30,7 +30,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    image: esf-platform:1.1.6
+    image: esf-platform:1.2.3
     restart: unless-stopped
     # WeasyPrint PDF rendering is CPU/RAM-spiky — cap it so it can't OOM the host.
     mem_limit: 1g
@@ -53,6 +53,14 @@ services:
       # production default; the env is here so the choice is visible and overridable.
       RATE_LIMIT_BACKEND: ${RATE_LIMIT_BACKEND:-postgres}
       TZ: ${TZ:-UTC}
+      # ---- AIOS Core integration (optional, all disabled by default) -------
+      # Set AIOS_ENABLED=true only when an AIOS Core instance is reachable.
+      # When false the platform is fully standalone (all 185 tests cover this path).
+      AIOS_ENABLED: ${AIOS_ENABLED:-false}
+      AIOS_BASE_URL: ${AIOS_BASE_URL:-}
+      AIOS_TOKEN: ${AIOS_TOKEN:-}
+      AIOS_WORKSPACE_ID: ${AIOS_WORKSPACE_ID:-}
+      AIOS_EXPECTED_TENANT_ID: ${AIOS_EXPECTED_TENANT_ID:-}
     volumes:
       - esf_storage:/app/storage        # persists generated QR PNGs
     healthcheck:

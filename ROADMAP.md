@@ -66,10 +66,17 @@
     - TD-021: `AIOSBridgeService` → `aios_sdk.AIOSClient`; Python 3.11 → 3.12
     - Suite: **195 tests pass**
 
+29. ESF-RUNTIME-001 — production deploy prep (2026-08-06):
+    - `docker-compose.prod.yml` image tag `1.1.6` → `1.2.3`
+    - AIOS optional env block added to compose + `.env.production.example`
+    - To deploy: `docker build -t esf-platform:1.2.3 ./backend`
+      then `docker compose -f docker-compose.prod.yml --env-file .env.production up -d`
+    - Owner-only blocker: I-1 (real domain + TLS cert from ACTION_REQUIRED.md)
+
 Status: **v1.2.3** — AIOS convergence + operability + SDK adoption + credential security
-complete. All three integration layers (Tasks / Identity / Memories) are live behind
-`AIOS_ENABLED` flag; behaviour when flag is false is identical to v1.1.6. Remaining work
-is owner-only P0 (ACTION_REQUIRED.md) and the deliberately out-of-scope items below.
+complete. Compose stack ready for v1.2.3 deploy. Remaining work is owner-only P0
+(ACTION_REQUIRED.md: I-1 TLS/domain, I-2 secret rotation) and the deliberately
+out-of-scope items below.
 
 Out of scope (require external systems): ГНС/tax-authority integration,
 ЭЦП/digital signature, legal validity.

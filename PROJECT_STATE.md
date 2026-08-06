@@ -162,4 +162,14 @@ memories, ping; `identity_verify` retains httpx (not in SDK). Python target 3.11
 TD-021 / TD-023 / TD-027 closed.
 Suite: **195 tests pass** (2026-08-06). Alembic head: `8d5e97b2590b`.
 
+ESF-RUNTIME-001 — production deploy prep (2026-08-06).
+`docker-compose.prod.yml`: image tag updated `1.1.6` → `1.2.3`; AIOS optional env
+vars added (`AIOS_ENABLED`, `AIOS_BASE_URL`, `AIOS_TOKEN`, `AIOS_WORKSPACE_ID`,
+`AIOS_EXPECTED_TENANT_ID` — all default to disabled/empty).
+`.env.production.example`: AIOS section added.
+Docker build requires Docker Desktop running:
+  `docker build -t esf-platform:1.2.3 ./backend`
+  `docker compose -f docker-compose.prod.yml --env-file .env.production up -d`
+Suite: **195 tests pass** (2026-08-06). Owner-only I-1 (TLS cert + real domain) still open.
+
 Awaiting direction.

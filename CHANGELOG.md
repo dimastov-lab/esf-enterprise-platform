@@ -1,5 +1,12 @@
 # CHANGELOG.md
 
+## ESF-RUNTIME-001 — Production deploy prep (2026-08-06)
+
+- `docker-compose.prod.yml`: image tag `esf-platform:1.1.6` → `esf-platform:1.2.3`
+- `docker-compose.prod.yml`: AIOS optional env block (`AIOS_ENABLED` etc., default disabled)
+- `.env.production.example`: AIOS integration section added
+- 195 tests pass; stack ready for `docker build` + `docker compose up`
+
 ## v1.2.3 — Credential security + SDK adoption (2026-08-06)
 
 Closes TD-021, TD-023, TD-027.
