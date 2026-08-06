@@ -10,7 +10,10 @@ required in development.
 
 When AIOS_ENABLED=true the bridge makes synchronous calls to AIOS Core via
 `aios_sdk.AIOSClient` and logs failures at WARNING level. Errors never
-propagate to the caller — all AIOS operations are fire-and-forget.
+propagate to the caller — all AIOS operations are fire-and-forget, with one
+exception: `identity_verify` and `async_identity_verify` raise
+`AIOSTokenRejectedError` when AIOS explicitly rejects a token (HTTP 4xx),
+so the caller can distinguish rejection from unavailability.
 
 NOTE — identity_verify: the AIOS SDK does not expose an identity endpoint.
 That call uses a *caller-supplied* token (not the service-account token), so
