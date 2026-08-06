@@ -260,16 +260,14 @@
 - **ID:** TD-021
 - **Severity:** Low
 - **Module:** `backend/app/core/aios_bridge.py`
-- **Description:** `AIOSBridgeService` uses raw `httpx` calls instead of `aios_sdk`
-  because the local dev venv is Python 3.9 (`aios_sdk` requires `ParamSpec` from
-  `typing`, available only in Python ≥ 3.10). The Docker runtime is Python 3.11
-  and could use the SDK today.
-- **Risk:** Minor — the httpx implementation is a faithful hand-written facade;
-  no correctness risk, just maintenance divergence from the SDK contract over time.
-- **Fix Plan:** Once the local venv is upgraded to 3.10+ (or when the SDK is published
-  as a pinned wheel), replace httpx calls in `AIOSBridgeService` with `AIOSClient`
-  from `aios_sdk`. Callers (`get_bridge()`, tests) need no changes.
-- **Status:** Open. No timeline yet.
+- **Description:** `AIOSBridgeService` used raw `httpx` calls instead of `aios_sdk`
+  because the local dev venv was Python 3.9 (`aios_sdk` requires Python ≥ 3.12).
+- **Risk:** Minor — maintenance divergence from the SDK contract over time.
+- **Fix Plan:** Upgrade venv to 3.12, install SDK editable dep, replace httpx calls.
+- **Status:** ✅ RESOLVED (v1.2.2) — venv / Dockerfile / pyproject upgraded to Python 3.12;
+  `AIOSClient` now handles task_create/start/escalate/complete/cancel, memory_create, and
+  ping via SDK-typed calls. `identity_verify` retains a direct httpx call (endpoint not
+  in SDK). All 185 tests pass.
 
 ## TD-022 — AIOS Layer 2: auto-provision AIOS users in ESF
 

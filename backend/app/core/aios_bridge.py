@@ -1,27 +1,25 @@
 """Single entry-point for all AIOS Core communication inside ESF.
 
-ADR-0015 Decision 3: ESF may not import aios.* directly. All SDK / HTTP
-calls go through this module. Routers and domain services import only
-`get_bridge()` — never `aios_sdk` or `httpx` directly.
+ADR-0015 Decision 3: ESF may not import aios.* directly. All SDK calls go
+through this module. Routers and domain services import only `get_bridge()`
+— never `aios_sdk` or `httpx` directly.
 
 When AIOS_ENABLED=false (the default) every method is a no-op and returns
 None. ESF behaves identically to v1.1.6 in that mode; no AIOS instance is
 required in development.
 
-When AIOS_ENABLED=true the bridge makes synchronous HTTPS calls to
-AIOS Core and logs failures at WARNING level. Errors never propagate to
-the caller — Layer 1 is fire-and-forget (temporary; becomes mandatory in
-Layer 2).
+When AIOS_ENABLED=true the bridge makes synchronous calls to AIOS Core via
+`aios_sdk.AIOSClient` and logs failures at WARNING level. Errors never
+propagate to the caller — all AIOS operations are fire-and-forget.
 
-Note on SDK vs HTTP: aios_sdk requires Python ≥ 3.10 (ParamSpec in typing);
-ESF's local dev venv is Python 3.9. The bridge calls the AIOS HTTP API
-directly via httpx. When ESF's runtime is upgraded to 3.11+ the bridge can
-be rewritten to use AIOSClient without any caller changes.
+NOTE — identity_verify: the AIOS SDK does not expose an identity endpoint.
+That call uses a *caller-supplied* token (not the service-account token), so
+it is implemented directly via httpx and kept isolated here.
 """
 from __future__ import annotations
 
+import json
 import logging
-import os
 from typing import Optional
 
 import httpx
@@ -34,69 +32,84 @@ _ESF_TASK_TYPE = "esf_document"
 
 
 class AIOSBridgeService:
-    """Thin HTTP facade over the AIOS Task API.
+    """SDK facade over the AIOS Task / Memory / Health APIs.
 
     Instantiated once at application startup by `_build_bridge()`.
+    The `AIOSClient` instance is held for the application lifetime —
+    reusing its connection pool across all requests.
     """
 
     def __init__(self, base_url: str, token: str, workspace_id: str) -> None:
-        self._base = base_url.rstrip("/")
-        self._headers = {
-            "Authorization": f"Bearer {token}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        }
-        self._workspace_id = workspace_id
+        from aios_sdk import AIOSClient
 
-    # ── Task lifecycle ────────────────────────────────────────────────────
+        self._sdk = AIOSClient(
+            base_url=base_url,
+            token=token,
+            timeout=httpx.Timeout(5.0),
+        )
+        self._workspace_id = workspace_id
+        self._base = base_url.rstrip("/")  # used only by identity_verify (not in SDK)
+
+    # ── Task lifecycle ─────────────────────────────────────────────────────
 
     def task_create(self, doc_uuid: str, doc_id: int) -> Optional[str]:
         """Create an AIOS task for a new ESF document. Returns the AIOS task_id."""
-        body = {
-            "subject_ref": f"esf:{doc_uuid}",
-            "title": f"ESF document {doc_id}",
-            "type": _ESF_TASK_TYPE,
-            "payload": {"esf_uuid": doc_uuid, "esf_id": doc_id},
-        }
-        if self._workspace_id:
-            body["workspace_id"] = self._workspace_id
-        resp = self._post("/api/v1/tasks", body,
-                          idempotency_key=f"esf-create-{doc_uuid}")
-        if resp is None:
+        from aios_sdk import CreateTaskRequest
+
+        try:
+            req = CreateTaskRequest(
+                subject_ref=f"esf:{doc_uuid}",
+                title=f"ESF document {doc_id}",
+                type=_ESF_TASK_TYPE,
+                payload={"esf_uuid": doc_uuid, "esf_id": doc_id},
+            )
+            resp = self._sdk.tasks.create(
+                req, idempotency_key=f"esf-create-{doc_uuid}"
+            )
+            return resp.data.id
+        except Exception as exc:
+            logger.warning("AIOS task_create failed for doc %s: %s", doc_id, exc)
             return None
-        return resp.get("id") or resp.get("task_id")
 
     def task_start(self, task_id: Optional[str]) -> None:
-        """DRAFT → VALIDATED: mark the AIOS task as started."""
-        if task_id:
-            self._post(f"/api/v1/tasks/{task_id}/start", None)
+        if not task_id:
+            return
+        try:
+            self._sdk.tasks.start(task_id)
+        except Exception as exc:
+            logger.warning("AIOS task_start failed for %s: %s", task_id, exc)
 
     def task_escalate(self, task_id: Optional[str]) -> None:
-        """VALIDATED → SNAPSHOT_CREATED: escalate the AIOS task."""
-        if task_id:
-            self._post(f"/api/v1/tasks/{task_id}/escalate", None)
+        if not task_id:
+            return
+        try:
+            self._sdk.tasks.escalate(task_id)
+        except Exception as exc:
+            logger.warning("AIOS task_escalate failed for %s: %s", task_id, exc)
 
     def task_complete(self, task_id: Optional[str]) -> None:
-        """SNAPSHOT_CREATED → PUBLISHED: complete the AIOS task."""
-        if task_id:
-            self._post(f"/api/v1/tasks/{task_id}/complete", None)
+        if not task_id:
+            return
+        try:
+            self._sdk.tasks.complete(task_id)
+        except Exception as exc:
+            logger.warning("AIOS task_complete failed for %s: %s", task_id, exc)
 
     def task_cancel(self, task_id: Optional[str]) -> None:
-        """PUBLISHED → CANCELLED: cancel the AIOS task."""
-        if task_id:
-            self._post(f"/api/v1/tasks/{task_id}/cancel", None)
+        if not task_id:
+            return
+        try:
+            self._sdk.tasks.cancel(task_id)
+        except Exception as exc:
+            logger.warning("AIOS task_cancel failed for %s: %s", task_id, exc)
 
-    # ── Connectivity ──────────────────────────────────────────────────────
+    # ── Connectivity ───────────────────────────────────────────────────────
 
     def ping(self) -> bool:
-        """Return True if AIOS is reachable (any sub-500 response within 3 s)."""
+        """Return True if AIOS is reachable (health endpoint responds without error)."""
         try:
-            with httpx.Client(timeout=3.0) as client:
-                resp = client.get(
-                    self._base + "/api/v1/health",
-                    headers=self._headers,
-                )
-                return resp.status_code < 500
+            self._sdk.health.get()
+            return True
         except Exception as exc:
             logger.warning("AIOS ping failed: %s", exc)
             return False
@@ -106,9 +119,9 @@ class AIOSBridgeService:
     def identity_verify(self, user_token: str) -> Optional[dict]:
         """Validate a user Bearer token via AIOS Identity.
 
-        Calls GET /api/v1/identity/me with the *caller's* token (not the ESF
-        service-account token) so AIOS validates it and returns identity claims.
-        Returns the claims dict on success, None when the token is invalid or
+        The AIOS SDK does not expose an identity endpoint so this call uses
+        httpx directly with the *caller's* token (not the service-account
+        token). Returns the claims dict on success, None on failure or when
         AIOS is unreachable (ESF falls back to its own JWT path in that case).
         """
         try:
@@ -137,45 +150,35 @@ class AIOSBridgeService:
 
         Uses snapshot_uuid as the Idempotency-Key so a retry on the same
         snapshot always resolves to the same memory record.
+
+        The snapshot payload is stored as JSON in the memory `content` field.
+        Provenance data (sha256, subject_ref) goes into `metadata`.
         """
-        body = {
-            "subject_ref": f"esf-snapshot:{snapshot_uuid}",
-            "payload": payload,
-            "sha256": sha256,
-        }
-        if self._workspace_id:
-            body["workspace_id"] = self._workspace_id
-        resp = self._post(
-            "/api/v1/memories",
-            body,
-            idempotency_key=f"esf-snapshot-{snapshot_uuid}",
-        )
-        if resp is None:
-            return None
-        return resp.get("id") or resp.get("memory_id")
+        from aios_sdk import CreateMemoryRequest
 
-    # ── Internal ──────────────────────────────────────────────────────────
-
-    def _post(self, path: str, body: Optional[dict],
-              idempotency_key: Optional[str] = None) -> Optional[dict]:
-        headers = dict(self._headers)
-        if idempotency_key:
-            headers["Idempotency-Key"] = idempotency_key
         try:
-            with httpx.Client(timeout=5.0) as client:
-                resp = client.post(
-                    self._base + path,
-                    json=body,
-                    headers=headers,
+            content = json.dumps(payload, ensure_ascii=False)
+            req = CreateMemoryRequest(
+                title=f"ESF Snapshot {snapshot_uuid}",
+                kind="esf_snapshot",
+                content=content,
+                metadata={
+                    "sha256": sha256,
+                    "subject_ref": f"esf-snapshot:{snapshot_uuid}",
+                },
+            )
+            ik = f"esf-snapshot-{snapshot_uuid}"
+            if self._workspace_id:
+                resp = self._sdk.memories.create_in_workspace(
+                    self._workspace_id, req, idempotency_key=ik
                 )
-                if resp.status_code >= 400:
-                    logger.warning(
-                        "AIOS %s returned %s: %s", path, resp.status_code, resp.text[:200]
-                    )
-                    return None
-                return resp.json() if resp.content else None
+            else:
+                resp = self._sdk.memories.create_global(req, idempotency_key=ik)
+            return resp.data.id
         except Exception as exc:
-            logger.warning("AIOS request to %s failed: %s", path, exc)
+            logger.warning(
+                "AIOS memory_create failed for snapshot %s: %s", snapshot_uuid, exc
+            )
             return None
 
 

@@ -292,6 +292,8 @@ class TestCredentialRoutes:
             .first()
         )
         assert row is not None
+        cred_id = resp.json()["id"]
+        assert row.meta_json.get("credential_id") == cred_id
 
     def test_revoke_credential_audit_uses_credential_revoked_action(
         self, client, auth_headers, db_session
@@ -310,3 +312,4 @@ class TestCredentialRoutes:
             .first()
         )
         assert row is not None
+        assert row.meta_json.get("credential_id") == cred_id

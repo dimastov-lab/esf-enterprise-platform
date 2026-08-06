@@ -1,7 +1,7 @@
 # Tooling config for the ESF backend (lint / format / coverage).
 [tool.ruff]
 line-length = 110
-target-version = "py311"   # runtime is python:3.11-slim (see backend/Dockerfile)
+target-version = "py312"   # runtime is python:3.12-slim (see backend/Dockerfile)
 extend-exclude = ["alembic/versions", ".venv", "legacy"]
 
 [tool.ruff.lint]
