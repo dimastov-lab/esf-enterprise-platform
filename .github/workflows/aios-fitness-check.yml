@@ -2,7 +2,13 @@ name: AIOS Architecture Fitness Check
 on:
   push:
     branches: [main]
+    paths:
+      - '**.py'
+      - 'tools/**'
   pull_request:
+    paths:
+      - '**.py'
+      - 'tools/**'
 
 jobs:
   fitness:
@@ -12,5 +18,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
       - name: Run fitness check
         run: python tools/fitness_check.py .

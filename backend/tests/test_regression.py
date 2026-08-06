@@ -123,6 +123,7 @@ def _all_fields_pairs():
     ]
 
 
+@pytest.mark.slow
 def test_all_sti007_fields_round_trip(admin, db_session, anon):
     """Field compliance: every STI-007 field must survive save → snapshot →
     public page → PDF (the snapshot is the authoritative source for both)."""
@@ -390,6 +391,7 @@ def test_snapshot_orm_immutable(admin, db_session):
 
 
 # ---- PDF --------------------------------------------------------------
+@pytest.mark.slow
 def test_pdf_draft_and_published(admin):
     uuid = new_draft(admin)
     save(admin, uuid, valid_pairs())
@@ -546,6 +548,7 @@ def test_batch_publish_and_delete(admin, db_session):
     assert db_session.query(ESFDocument).filter(ESFDocument.uuid == U.UUID(a)).one().status == DocumentStatus.PUBLISHED
 
 
+@pytest.mark.slow
 def test_batch_pdf_returns_zip(admin):
     a = new_draft(admin); save(admin, a, valid_pairs())
     b = new_draft(admin); save(admin, b, valid_pairs())
@@ -1120,6 +1123,7 @@ def test_money_overflow_rejected_not_500(admin):
     assert save(admin, uuid, valid_pairs()).status_code in (200, 303)
 
 
+@pytest.mark.slow
 def test_cancelled_pdf_renders_from_snapshot(admin):
     """A CANCELLED doc's PDF renders from the immutable snapshot (published status),
     not live data (which would misrepresent it as an unpublished 'проект')."""

@@ -6,7 +6,26 @@ on:
   pull_request:
 
 jobs:
+  # Fast fail-fast gate — PRs know within ~20s whether lint is broken.
+  lint:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+      - name: Install ruff
+        run: pip install ruff
+      - name: Lint (ruff)
+        run: ruff check .
+
   test:
+    needs: lint
     runs-on: ubuntu-latest
 
     services:
@@ -38,7 +57,7 @@ jobs:
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"   # matches backend/Dockerfile (python:3.11-slim)
+          python-version: "3.11"
           cache: pip
           cache-dependency-path: backend/requirements-dev.txt
 
@@ -47,29 +66,52 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
 
-      - name: Lint (ruff)
-        run: ruff check .
-
       - name: Apply migrations
         run: alembic upgrade head
 
       - name: Run tests with coverage
-        # --cov-fail-under is a regression floor (raise it as coverage grows); the
-        # broad end-to-end suite is comfortably above it.
-        run: python -m pytest --cov --cov-report=term-missing --cov-fail-under=70
+        # -m '' overrides the default "not slow" from pyproject.toml addopts so CI
+        # always runs the full suite including PDF-rendering and sleep-based tests.
+        run: python -m pytest --cov --cov-report=term-missing --cov-fail-under=70 -m ''
+
+  # Runs in parallel with test — CVE scan doesn't block or wait for pytest.
+  audit:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install pip-audit
+        run: pip install pip-audit
 
       - name: Audit dependencies for known CVEs
         run: pip-audit -r requirements.txt
 
-  # The deploy artifact is the Docker image — build it in CI so a broken
-  # Dockerfile/entrypoint/native-lib set can never pass with a green test job.
+  # Buildx + GHA layer cache cuts cold build from ~4 min to ~1 min after first run.
   docker-build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
+      - uses: docker/setup-buildx-action@v3
+
       - name: Build the production image
-        run: docker build -t esf-platform:ci backend
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          push: false
+          load: true
+          tags: esf-platform:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Smoke-test the image (the app imports & boots inside the container)
         run: |
