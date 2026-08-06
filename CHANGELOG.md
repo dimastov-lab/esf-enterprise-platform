@@ -1,8 +1,8 @@
 # CHANGELOG.md
 
-## v1.2.4 — Async AIOS identity + credential rate-limiting + row-lock fix (2026-08-06)
+## v1.2.4 — Async AIOS identity + credential rate-limiting + row-lock fix + AIOS rejection (2026-08-06)
 
-Closes TD-024, TD-026.
+Closes TD-024, TD-025, TD-026.
 
 - **Async identity verify**: `get_current_api_user` is now `async def`; Layer 2 AIOS
   call uses `httpx.AsyncClient` with 2 s timeout (was sync `httpx.Client` with 5 s
@@ -18,8 +18,15 @@ Closes TD-024, TD-026.
   payload fields (`payload_json`, `sha256`, `immutable`); DB-level trigger narrowed to
   the same via migration `a2b3c4d5e6f7` (reversible); `aios_memory_id` is written in a
   separate post-commit UPDATE that passes both guards.
+- **TD-025 AIOS rejection vs unavailability**: `AIOSTokenRejectedError` added to
+  `aios_bridge.py`; `identity_verify` / `async_identity_verify` raise it on HTTP 4xx
+  (explicit rejection) and return `None` on 5xx / network errors (unreachable).
+  `get_current_api_user` catches `AIOSTokenRejectedError` before the generic handler
+  and raises HTTP 401 immediately — no ESF JWT fallback on explicit rejection.
+  Graceful degradation when AIOS is down (return `None` → JWT fallback) is preserved.
+  11 new tests (10 bridge-unit + 1 integration).
 - `config.VERSION` → `"1.2.4"`.
-- Suite: **200 tests pass**.
+- Suite: **211 tests pass**.
 
 ## ESF-RUNTIME-001 — Production deploy prep (2026-08-06)
 
