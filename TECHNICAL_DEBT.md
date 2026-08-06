@@ -344,10 +344,11 @@
 - **Fix Plan:** Move the `memory_create` call to after `self.repo.commit()`, storing
   `aios_memory_id` in a post-commit UPDATE (which requires relaxing the snapshot immutability
   guard for `aios_memory_id` specifically).
-- **Status:** RESOLVED (v1.2.4). `memory_create` moved after `self.repo.commit()` (row lock
-  released). `ESFSnapshot._block_snapshot_update` now checks only payload fields
-  (`payload_json`, `sha256`, `immutable`); `aios_memory_id` is a post-commit link annotation
-  and may be written in a separate UPDATE. 200 tests pass.
+- **Status:** ✅ RESOLVED (v1.2.4). `memory_create` moved after `self.repo.commit()` (row lock
+  released). ORM guard `_block_snapshot_update` narrowed to `_PAYLOAD_FIELDS = {payload_json,
+  sha256, immutable}`; DB-level trigger narrowed to the same fields via migration
+  `a2b3c4d5e6f7`. `aios_memory_id` is a post-commit link annotation written in a separate
+  UPDATE that passes both guards. 200 tests pass.
 
 ## TD-027 — API credentials: no maximum TTL, dead revoke_all_for_user
 

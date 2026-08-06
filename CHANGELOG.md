@@ -14,9 +14,10 @@ Closes TD-024, TD-026.
 - Tests: updated `test_aios_identity.py` to mock `async_identity_verify` via `AsyncMock`;
   added `TestCredentialRateLimit` (4 tests).
 - **TD-026 row-lock fix**: `memory_create()` moved after `self.repo.commit()` in
-  `publish()` — row lock is released before the AIOS HTTP call. `ESFSnapshot`
-  immutability guard narrowed to payload fields (`payload_json`, `sha256`, `immutable`);
-  `aios_memory_id` is written in a separate post-commit UPDATE.
+  `publish()` — row lock is released before the AIOS HTTP call. ORM guard narrowed to
+  payload fields (`payload_json`, `sha256`, `immutable`); DB-level trigger narrowed to
+  the same via migration `a2b3c4d5e6f7` (reversible); `aios_memory_id` is written in a
+  separate post-commit UPDATE that passes both guards.
 - `config.VERSION` → `"1.2.4"`.
 - Suite: **200 tests pass**.
 
