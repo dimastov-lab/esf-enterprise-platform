@@ -11,6 +11,8 @@ from fastapi.testclient import TestClient
 
 from app.main import app
 
+pytestmark = pytest.mark.xdist_group("esf_publish")
+
 FORM = {"content-type": "application/x-www-form-urlencoded"}
 
 

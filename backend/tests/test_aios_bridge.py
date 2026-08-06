@@ -16,6 +16,8 @@ import pytest
 
 from app.core.aios_bridge import _NoOpBridge, reset_bridge
 
+pytestmark = pytest.mark.xdist_group("esf_publish")
+
 FORM = {"content-type": "application/x-www-form-urlencoded"}
 
 
