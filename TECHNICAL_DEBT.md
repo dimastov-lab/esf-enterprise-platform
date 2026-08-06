@@ -299,7 +299,9 @@
 - **Risk:** Operator misconfiguration exposes tokens on the network in cleartext.
 - **Fix Plan:** In `Settings.validate_for_runtime()`, when `AIOS_ENABLED=true` and
   `is_production`, reject `AIOS_BASE_URL` that does not start with `https://`.
-- **Status:** Open. Low operational risk for current single-host deployment.
+- **Status:** ✅ RESOLVED (v1.2.2, 2026-08-06) — `validate_for_runtime()` now raises
+  `RuntimeError` when `AIOS_ENABLED=true` and `ENVIRONMENT=production` if `AIOS_BASE_URL`
+  does not start with `https://`. 4 tests in `test_config_validation.py`.
 
 ## TD-024 — AIOS: synchronous blocking AIOS call in unthrottled auth dependency
 
@@ -354,7 +356,10 @@
 - **Risk:** A captured short-lived JWT can be exchanged for a permanent credential.
 - **Fix Plan:** Enforce `max_ttl_days=90` in `issue()`; call `revoke_all_for_user` on password
   reset and account deactivation; add a distinct `CREDENTIAL_ISSUED` audit action.
-- **Status:** Open.
+- **Status:** ✅ RESOLVED (v1.2.2, 2026-08-06) — `MAX_TTL_DAYS=90` enforced in
+  `CredentialService.issue()`; router raises HTTP 422 on overflow; `CREDENTIAL_ISSUED`
+  and `CREDENTIAL_REVOKED` audit constants added; `POST /admin/users/{id}/deactivate`
+  calls `revoke_all_for_user` and emits audit; "Деакт." button in admin UI.
 
 ## Rule
 

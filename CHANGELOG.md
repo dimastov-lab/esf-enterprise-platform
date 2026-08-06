@@ -1,5 +1,28 @@
 # CHANGELOG.md
 
+## v1.2.2 — Credential security sprint (2026-08-06)
+
+Closes TD-023 and TD-027.
+
+- **TD-023**: `Settings.validate_for_runtime()` raises `RuntimeError` when
+  `AIOS_ENABLED=true` and `ENVIRONMENT=production` if `AIOS_BASE_URL` does not start
+  with `https://`. Dev mode (`ENVIRONMENT=development`) is exempt. 4 tests.
+- **TD-027a**: `MAX_TTL_DAYS = 90` constant in `CredentialService`; `issue()` raises
+  `ValueError` when `expires_in_days > MAX_TTL_DAYS`; router converts this to HTTP 422
+  with a descriptive message. 2 tests.
+- **TD-027b**: `CREDENTIAL_ISSUED` and `CREDENTIAL_REVOKED` audit action constants replace
+  the misused `LOGIN`/`LOGOUT` actions in `auth.py` credential routes. Audit metadata
+  now includes `credential_id`, `label`, and `expires_in_days` (issue) or `credential_id`
+  (revoke). 3 tests.
+- **TD-027c**: `AuthService.deactivate_user(user_id)` sets `is_active=False`; raises
+  `ValueError` if not found or already inactive. `POST /admin/users/{id}/deactivate`
+  (admin-only, CSRF-protected) calls `deactivate_user` then `revoke_all_for_user` and
+  emits a `CREDENTIAL_REVOKED` audit row with `deactivated_user_id` + revoked count.
+  "Деакт." button added to `admin_users.html` (non-admin active users only). 7 tests.
+- Suite: **195 tests pass**.
+
+---
+
 ## v1.2.1 — AIOS operability dashboard (2026-08-05)
 
 - `AIOSBridgeService.ping()`: lightweight GET `/api/v1/health` (3 s timeout),

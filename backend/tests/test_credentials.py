@@ -129,6 +129,23 @@ class TestCredentialService:
         for c in svc.list_for_user(user):
             assert c.revoked_at is not None
 
+    def test_issue_raises_when_expires_in_days_exceeds_max(self, db_session, seed_users):
+        from app.models import User
+        from app.services.credential_service import MAX_TTL_DAYS
+        user = db_session.query(User).filter_by(username="t_admin").one()
+        svc = CredentialService(db_session)
+        with pytest.raises(ValueError, match="90"):
+            svc.issue(user, expires_in_days=MAX_TTL_DAYS + 1)
+
+    def test_issue_accepts_exactly_max_ttl(self, db_session, seed_users):
+        from app.models import User
+        from app.services.credential_service import MAX_TTL_DAYS
+        user = db_session.query(User).filter_by(username="t_admin").one()
+        svc = CredentialService(db_session)
+        cred, raw = svc.issue(user, expires_in_days=MAX_TTL_DAYS)
+        assert cred.expires_at is not None
+        assert cred.is_active
+
 
 # ---------------------------------------------------------------------------
 # HTTP endpoint tests
@@ -241,3 +258,55 @@ class TestCredentialEndpoints:
         api_client.headers["Authorization"] = f"Bearer {raw_token}"
         resp = api_client.get("/auth/credentials")
         assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Audit action vocabulary tests
+# ---------------------------------------------------------------------------
+
+class TestCredentialRoutes:
+    def test_issue_credential_returns_422_when_ttl_exceeds_max(self, client, auth_headers):
+        from app.services.credential_service import MAX_TTL_DAYS
+        resp = client.post(
+            "/auth/credentials",
+            data={"expires_in_days": MAX_TTL_DAYS + 1},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 422
+
+    def test_issue_credential_audit_uses_credential_issued_action(
+        self, client, auth_headers, db_session
+    ):
+        from app.models import AuditLog
+        from app.services.credential_service import MAX_TTL_DAYS
+        resp = client.post(
+            "/auth/credentials",
+            data={"expires_in_days": MAX_TTL_DAYS},
+            headers=auth_headers,
+        )
+        assert resp.status_code == 200
+        row = (
+            db_session.query(AuditLog)
+            .filter_by(action="CREDENTIAL_ISSUED")
+            .order_by(AuditLog.id.desc())
+            .first()
+        )
+        assert row is not None
+
+    def test_revoke_credential_audit_uses_credential_revoked_action(
+        self, client, auth_headers, db_session
+    ):
+        from app.models import AuditLog
+        # Issue first
+        issue_resp = client.post("/auth/credentials", headers=auth_headers)
+        cred_id = issue_resp.json()["id"]
+        # Revoke
+        resp = client.delete(f"/auth/credentials/{cred_id}", headers=auth_headers)
+        assert resp.status_code == 200
+        row = (
+            db_session.query(AuditLog)
+            .filter_by(action="CREDENTIAL_REVOKED")
+            .order_by(AuditLog.id.desc())
+            .first()
+        )
+        assert row is not None

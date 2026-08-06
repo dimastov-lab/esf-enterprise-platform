@@ -112,3 +112,16 @@ def issuer2(override_db, seed_users, db_session):
 @pytest.fixture
 def anon(override_db):
     return TestClient(app, follow_redirects=False)
+
+
+@pytest.fixture
+def client(override_db, seed_users):
+    return TestClient(app)
+
+
+@pytest.fixture
+def auth_headers(client):
+    resp = client.post("/auth/token", data={"username": "t_admin", "password": "pw"})
+    assert resp.status_code == 200, resp.text
+    token = resp.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
