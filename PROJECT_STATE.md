@@ -200,4 +200,11 @@ preserved when AIOS is down. 1 new integration test
 
 `config.VERSION = "1.2.4"`. Suite: **211 tests pass** (2026-08-06).
 
+Production local deploy verified 2026-08-06: `docker compose -f docker-compose.prod.yml
+--env-file ~/.config/esf/.env.production up -d` — all 3 containers healthy (db, app, nginx);
+`/healthz` → `ok`; `/login` → 200; `/dashboard` → 303 (auth redirect); structured JSON
+access logs; 2 Uvicorn workers; Alembic at head. Self-signed cert for `https://localhost`.
+All P0 owner tasks closed (R-1, I-2, I-1-local). For a public deployment: swap cert via
+Let's Encrypt and update `PUBLIC_BASE_URL`.
+
 Awaiting direction.
