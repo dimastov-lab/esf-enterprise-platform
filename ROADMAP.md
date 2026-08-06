@@ -59,18 +59,17 @@
       base URL / workspace / token presence, per-entity link-count stats
     - `config.VERSION` → `"1.2.0"`; 10 tests; suite: **179 tests pass**
 
-28. v1.2.2 — TD-021: httpx → aios_sdk (2026-08-06):
-    - `AIOSBridgeService` rewritten to use `aios_sdk.AIOSClient` for tasks,
-      memories, and health/ping; `identity_verify` keeps httpx (not in SDK)
-    - Python target: 3.11 → 3.12 (Dockerfile, pyproject.toml, requirements.txt)
-    - Dev venv recreated at 3.12; SDK installed as editable dep
-    - Public interface unchanged; TD-021 closed
-    - Suite: **185 tests pass**
+28. v1.2.3 — Credential security + SDK adoption (2026-08-06):
+    - TD-023: `validate_for_runtime()` rejects `http://` AIOS_BASE_URL in production
+    - TD-027: `MAX_TTL_DAYS=90`; `CREDENTIAL_ISSUED`/`CREDENTIAL_REVOKED` audit;
+      `POST /admin/users/{id}/deactivate` revokes all credentials + admin guard
+    - TD-021: `AIOSBridgeService` → `aios_sdk.AIOSClient`; Python 3.11 → 3.12
+    - Suite: **195 tests pass**
 
-Status: **v1.2.2** — AIOS convergence + operability + SDK adoption complete. All three
-integration layers (Tasks / Identity / Memories) are live behind `AIOS_ENABLED` flag;
-behaviour when flag is false is identical to v1.1.6. Remaining work is owner-only P0
-(ACTION_REQUIRED.md) and the deliberately out-of-scope items below.
+Status: **v1.2.3** — AIOS convergence + operability + SDK adoption + credential security
+complete. All three integration layers (Tasks / Identity / Memories) are live behind
+`AIOS_ENABLED` flag; behaviour when flag is false is identical to v1.1.6. Remaining work
+is owner-only P0 (ACTION_REQUIRED.md) and the deliberately out-of-scope items below.
 
 Out of scope (require external systems): ГНС/tax-authority integration,
 ЭЦП/digital signature, legal validity.

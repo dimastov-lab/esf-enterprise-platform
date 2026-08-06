@@ -150,13 +150,16 @@ with `aios_task_id`, snapshots with `aios_memory_id`). Template `admin_aios.html
 consistent with admin_audit style. 10 tests. `config.VERSION = "1.2.0"`.
 Suite: **179 tests pass** (2026-08-05).
 
-v1.2.2 — TD-021 SDK adoption (2026-08-06). `AIOSBridgeService` rewritten to use
-`aios_sdk.AIOSClient` instead of hand-rolled httpx: task lifecycle via
-`sdk.tasks.*`, memory create via `sdk.memories.create_in_workspace` /
-`create_global`, ping via `sdk.health.get()`. `identity_verify` keeps a direct
-httpx call (identity endpoint not in SDK). Python target bumped 3.11 → 3.12
-(Dockerfile, pyproject.toml, requirements.txt). Public interface unchanged;
-all callers and all 185 tests unaffected. TD-021 closed.
-Suite: **185 tests pass** (2026-08-06). Alembic head: `8d5e97b2590b`.
+v1.2.3 — Credential security + SDK adoption (2026-08-06).
+**TD-023**: `validate_for_runtime()` rejects `http://` AIOS_BASE_URL in production
+when `AIOS_ENABLED=true`. 4 tests.
+**TD-027**: `MAX_TTL_DAYS=90` enforced in `CredentialService.issue()`; distinct
+`CREDENTIAL_ISSUED`/`CREDENTIAL_REVOKED` audit actions; `AuthService.deactivate_user()`
+→ `POST /admin/users/{id}/deactivate` revokes all credentials + audit + admin guard.
+**TD-021**: `AIOSBridgeService` rewritten to use `aios_sdk.AIOSClient` for tasks,
+memories, ping; `identity_verify` retains httpx (not in SDK). Python target 3.11 → 3.12
+(Dockerfile, pyproject.toml, requirements.txt). `config.VERSION = "1.2.3"`.
+TD-021 / TD-023 / TD-027 closed.
+Suite: **195 tests pass** (2026-08-06). Alembic head: `8d5e97b2590b`.
 
 Awaiting direction.

@@ -1,6 +1,30 @@
 # CHANGELOG.md
 
-## v1.2.2 — TD-021: httpx → aios_sdk (2026-08-06)
+## v1.2.3 — Credential security + SDK adoption (2026-08-06)
+
+Closes TD-021, TD-023, TD-027.
+
+### TD-023 — AIOS: https enforcement in production
+
+- `Settings.validate_for_runtime()` raises `RuntimeError` when `AIOS_ENABLED=true`
+  and `ENVIRONMENT=production` if `AIOS_BASE_URL` does not start with `https://`.
+  Dev mode (`ENVIRONMENT=development`) is exempt. 4 tests.
+
+### TD-027 — API credentials: TTL cap + audit + deactivate
+
+- **TD-027a**: `MAX_TTL_DAYS = 90` constant in `CredentialService`; `issue()` raises
+  `ValueError` when `expires_in_days > MAX_TTL_DAYS`; router converts to HTTP 422. 2 tests.
+- **TD-027b**: `CREDENTIAL_ISSUED` and `CREDENTIAL_REVOKED` audit action constants replace
+  the misused `LOGIN`/`LOGOUT` actions in credential routes; metadata includes
+  `credential_id`, `label`, `expires_in_days`. 3 tests.
+- **TD-027c**: `AuthService.deactivate_user(user_id)` sets `is_active=False`; raises
+  `ValueError` on missing / already-inactive user. `POST /admin/users/{id}/deactivate`
+  (admin-only, CSRF-protected) revokes all credentials and emits audit.
+  "Деакт." button in `admin_users.html` (non-admin active users only). 7 tests.
+- Admin guard: admins cannot deactivate other admins or themselves.
+- `db.commit()` before audit write so deactivation persists even if audit fails.
+
+### TD-021 — AIOS SDK adoption (httpx → aios_sdk)
 
 - `AIOSBridgeService` replaced raw `httpx` calls with `aios_sdk.AIOSClient`:
   - `task_create/start/escalate/complete/cancel` → `sdk.tasks.*`
@@ -8,11 +32,9 @@
   - `ping` → `sdk.health.get()`
   - `identity_verify` keeps a direct httpx call (identity endpoint not in SDK)
 - Python target bumped 3.11 → 3.12: `Dockerfile` (`python:3.12-slim-bookworm`),
-  `pyproject.toml` (`target-version = "py312"`), `requirements.txt` header comment.
+  `pyproject.toml` (`target-version = "py312"`), `requirements.txt`.
 - Dev venv recreated with Python 3.12; `aios_sdk` installed as editable dep.
-- Public interface unchanged: `get_bridge()` / `reset_bridge()` / all method
-  signatures are identical; no callers modified.
-- TD-021 closed. Suite: **185 tests pass**.
+- `config.VERSION` → `"1.2.3"`. Suite: **195 tests pass**.
 
 ---
 
