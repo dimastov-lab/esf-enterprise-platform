@@ -28,6 +28,18 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+
+class AIOSTokenRejectedError(Exception):
+    """Raised by identity_verify when AIOS explicitly rejects a token (4xx).
+
+    Distinct from unavailability (network errors / 5xx), which returns None
+    to allow ESF JWT fallback for graceful degradation.
+    """
+    def __init__(self, status_code: int) -> None:
+        self.status_code = status_code
+        super().__init__(f"AIOS rejected token with status {status_code}")
+
+
 _ESF_TASK_TYPE = "esf_document"
 
 
@@ -119,10 +131,9 @@ class AIOSBridgeService:
     def identity_verify(self, user_token: str) -> Optional[dict]:
         """Validate a user Bearer token via AIOS Identity (synchronous).
 
-        The AIOS SDK does not expose an identity endpoint so this call uses
-        httpx directly with the *caller's* token (not the service-account
-        token). Returns the claims dict on success, None on failure or when
-        AIOS is unreachable (ESF falls back to its own JWT path in that case).
+        Returns the claims dict on 200. Raises AIOSTokenRejectedError on 4xx
+        (AIOS explicitly rejected the token — do not fall back to ESF JWT).
+        Returns None on 5xx or network errors (AIOS unreachable — fall back).
         """
         try:
             with httpx.Client(timeout=2.0) as client:
@@ -135,20 +146,22 @@ class AIOSBridgeService:
                 )
                 if resp.status_code == 200:
                     return resp.json()
+                if 400 <= resp.status_code < 500:
+                    raise AIOSTokenRejectedError(resp.status_code)
                 logger.warning(
                     "AIOS identity_verify returned %s", resp.status_code
                 )
                 return None
+        except AIOSTokenRejectedError:
+            raise
         except Exception as exc:
             logger.warning("AIOS identity_verify failed: %s", exc)
             return None
 
     async def async_identity_verify(self, user_token: str) -> Optional[dict]:
-        """Async variant — used by get_current_api_user to avoid blocking the threadpool.
+        """Async variant of identity_verify — same contract, uses AsyncClient.
 
-        Identical contract to identity_verify but uses httpx.AsyncClient so the
-        event loop is not blocked while waiting for AIOS. Timeout reduced to 2 s
-        to cap the blast radius from slow/unreachable AIOS instances.
+        Raises AIOSTokenRejectedError on 4xx; returns None on 5xx/network errors.
         """
         try:
             async with httpx.AsyncClient(timeout=2.0) as client:
@@ -161,10 +174,14 @@ class AIOSBridgeService:
                 )
                 if resp.status_code == 200:
                     return resp.json()
+                if 400 <= resp.status_code < 500:
+                    raise AIOSTokenRejectedError(resp.status_code)
                 logger.warning(
                     "AIOS async_identity_verify returned %s", resp.status_code
                 )
                 return None
+        except AIOSTokenRejectedError:
+            raise
         except Exception as exc:
             logger.warning("AIOS async_identity_verify failed: %s", exc)
             return None

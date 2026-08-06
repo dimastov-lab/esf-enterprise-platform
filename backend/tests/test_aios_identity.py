@@ -9,11 +9,12 @@ Covers:
 - esf_ PG credentials not affected by AIOS identity path
 - _NoOpBridge.identity_verify / async_identity_verify return None
 """
+import httpx
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
 
-from app.core.aios_bridge import _NoOpBridge, get_bridge, reset_bridge
+from app.core.aios_bridge import AIOSBridgeService, AIOSTokenRejectedError, _NoOpBridge, get_bridge, reset_bridge
 from app.core.config import settings
 from app.main import app
 
@@ -174,3 +175,77 @@ class TestAIOSIdentityEnabled:
         c.headers["Authorization"] = "Bearer totally-invalid-garbage"
         resp = c.get("/auth/credentials")
         assert resp.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# AIOSBridgeService.identity_verify — unit tests for 4xx distinction
+# ---------------------------------------------------------------------------
+
+class TestBridgeIdentityVerifyRejection:
+    """Unit tests: 4xx → raise AIOSTokenRejectedError; 5xx/network → return None."""
+
+    def _make_bridge(self):
+        bridge = AIOSBridgeService.__new__(AIOSBridgeService)
+        bridge._base = "http://fakehost"
+        return bridge
+
+    def _mock_sync_client(self, status_code: int):
+        mock_resp = MagicMock()
+        mock_resp.status_code = status_code
+        mock_client = MagicMock()
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.get.return_value = mock_resp
+        return mock_client
+
+    @pytest.mark.parametrize("status_code", [401, 403, 404, 422])
+    def test_identity_verify_raises_on_4xx(self, status_code):
+        bridge = self._make_bridge()
+        mock_client = self._mock_sync_client(status_code)
+        with patch("app.core.aios_bridge.httpx.Client", return_value=mock_client):
+            with pytest.raises(AIOSTokenRejectedError) as exc_info:
+                bridge.identity_verify("some-token")
+        assert exc_info.value.status_code == status_code
+
+    @pytest.mark.parametrize("status_code", [500, 502, 503])
+    def test_identity_verify_returns_none_on_5xx(self, status_code):
+        bridge = self._make_bridge()
+        mock_client = self._mock_sync_client(status_code)
+        with patch("app.core.aios_bridge.httpx.Client", return_value=mock_client):
+            result = bridge.identity_verify("some-token")
+        assert result is None
+
+    def test_identity_verify_returns_none_on_network_error(self):
+        bridge = self._make_bridge()
+        mock_client = MagicMock()
+        mock_client.__enter__ = MagicMock(return_value=mock_client)
+        mock_client.__exit__ = MagicMock(return_value=False)
+        mock_client.get.side_effect = httpx.ConnectError("timeout")
+        with patch("app.core.aios_bridge.httpx.Client", return_value=mock_client):
+            result = bridge.identity_verify("some-token")
+        assert result is None
+
+    @pytest.mark.anyio
+    async def test_async_identity_verify_raises_on_4xx(self):
+        bridge = self._make_bridge()
+        mock_resp = MagicMock()
+        mock_resp.status_code = 401
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        with patch("app.core.aios_bridge.httpx.AsyncClient", return_value=mock_client):
+            with pytest.raises(AIOSTokenRejectedError) as exc_info:
+                await bridge.async_identity_verify("some-token")
+        assert exc_info.value.status_code == 401
+
+    @pytest.mark.anyio
+    async def test_async_identity_verify_returns_none_on_network_error(self):
+        bridge = self._make_bridge()
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=httpx.ConnectError("timeout"))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        with patch("app.core.aios_bridge.httpx.AsyncClient", return_value=mock_client):
+            result = await bridge.async_identity_verify("some-token")
+        assert result is None
