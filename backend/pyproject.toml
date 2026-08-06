@@ -23,3 +23,12 @@ skip_covered = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 filterwarnings = ["ignore::DeprecationWarning"]
+# -n auto: run tests in parallel (requires pytest-xdist).
+# --dist=loadfile: keep tests from the same file on one worker — avoids cross-worker
+#   shared-state races (in-memory rate-limit store, autouse reset fixtures).
+# -m "not slow": skip PDF-rendering and sleep-based tests by default; CI overrides
+#   with -m "" to run the full suite.
+addopts = "-n auto --dist=loadfile -m 'not slow'"
+markers = [
+    "slow: marks tests as slow — PDF rendering, sleep-based timing (override with -m '')",
+]

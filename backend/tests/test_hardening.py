@@ -22,6 +22,7 @@ def pg_store():
     store.clear_all()
 
 
+@pytest.mark.xdist_group("pg_ratelimit")
 class TestPostgresStore:
     def test_incr_counts_within_window(self, pg_store):
         assert pg_store.incr("t:a", 60) == 1
@@ -45,6 +46,7 @@ class TestPostgresStore:
         pg_store.reset("t:a")
         assert pg_store.count("t:a", 60) == 0
 
+    @pytest.mark.slow
     def test_window_rollover_starts_fresh(self, pg_store):
         pg_store.incr("t:roll", 1)
         time.sleep(1.1)
@@ -57,6 +59,7 @@ class TestPostgresStore:
         assert other.incr("t:shared", 60) == 2
 
 
+@pytest.mark.xdist_group("pg_ratelimit")
 class TestModuleApiOnPostgres:
     """The public module API (used by routers) against the shared store."""
 
