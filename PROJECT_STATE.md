@@ -172,4 +172,11 @@ Docker build requires Docker Desktop running:
   `docker compose -f docker-compose.prod.yml --env-file .env.production up -d`
 Suite: **195 tests pass** (2026-08-06). Owner-only I-1 (TLS cert + real domain) still open.
 
+v1.2.4 — async AIOS identity + credential rate-limiting (TD-024, 2026-08-06).
+`get_current_api_user` is now `async def`; uses `httpx.AsyncClient` (2 s timeout,
+was sync httpx 5 s in Starlette threadpool — DoS vector). New `throttle_api()`
+rate-limiter (20 req/60 s/IP, shared Postgres bucket `api:`) applied to
+POST/GET/DELETE `/auth/credentials`. `_NoOpBridge.async_identity_verify` stub added.
+TD-024 closed. Suite: **200 tests pass** (2026-08-06).
+
 Awaiting direction.

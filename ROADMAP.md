@@ -73,10 +73,15 @@
       then `docker compose -f docker-compose.prod.yml --env-file .env.production up -d`
     - Owner-only blocker: I-1 (real domain + TLS cert from ACTION_REQUIRED.md)
 
-Status: **v1.2.3** — AIOS convergence + operability + SDK adoption + credential security
-complete. Compose stack ready for v1.2.3 deploy. Remaining work is owner-only P0
-(ACTION_REQUIRED.md: I-1 TLS/domain, I-2 secret rotation) and the deliberately
-out-of-scope items below.
+30. v1.2.4 — async AIOS identity + credential rate-limiting (2026-08-06):
+    - TD-024: `get_current_api_user` → `async def`; `httpx.AsyncClient` (2 s timeout)
+      replaces blocking sync call; `throttle_api()` (20 req/60 s/IP) on all
+      `/auth/credentials` endpoints; 200 tests pass
+
+Status: **v1.2.4** — AIOS convergence + operability + SDK adoption + credential security
++ async identity fix complete. Compose stack ready for v1.2.3 deploy. Remaining work is
+owner-only P0 (ACTION_REQUIRED.md: I-1 TLS/domain, I-2 secret rotation) and the
+deliberately out-of-scope items below.
 
 Out of scope (require external systems): ГНС/tax-authority integration,
 ЭЦП/digital signature, legal validity.
