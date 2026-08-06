@@ -109,6 +109,11 @@ relocated to ~/Desktop/ESF-Private-Materials), **I-2 partially done** (.env.prod
 from repo and Desktop root; value rotation still pending), **I-1 open** (needs the real
 server/domain). See ACTION_REQUIRED.md «Статус».
 
+Owner-only P0 update 2026-08-06: **I-2 done** — new `SECRET_KEY`/`POSTGRES_PASSWORD`/
+`ADMIN_PASSWORD` generated and written to `~/.config/esf/.env.production` (mode 600,
+outside iCloud/Desktop/repo). Remaining before production deploy: set real `PUBLIC_BASE_URL`
+in that file; run Let's Encrypt on the server (I-1).
+
 v1.2.0 — AIOS Core convergence (2026-08-05). AUTH-01 + Layers 1/2/3 complete.
 
 **AUTH-01** (PG-backed API credentials): new `api_credentials` table (migration
