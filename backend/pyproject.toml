@@ -24,11 +24,12 @@ skip_covered = true
 testpaths = ["tests"]
 filterwarnings = ["ignore::DeprecationWarning"]
 # -n auto: run tests in parallel (requires pytest-xdist).
-# --dist=loadfile: keep tests from the same file on one worker — avoids cross-worker
-#   shared-state races (in-memory rate-limit store, autouse reset fixtures).
+# --dist=loadgroup: route tests by xdist_group marker — groups with the same name land
+#   on the same worker (serialises cross-file groups like "esf_publish" and "pg_ratelimit").
+#   Tests without a group marker are distributed freely across workers.
 # -m "not slow": skip PDF-rendering and sleep-based tests by default; CI overrides
 #   with -m "" to run the full suite.
-addopts = "-n auto --dist=loadfile -m 'not slow'"
+addopts = "-n auto --dist=loadgroup -m 'not slow'"
 markers = [
     "slow: marks tests as slow — PDF rendering, sleep-based timing (override with -m '')",
 ]
