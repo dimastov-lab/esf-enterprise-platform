@@ -4,6 +4,7 @@ on:
   push:
     branches: [main, master]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   # Fast fail-fast gate — PRs know within ~20s whether lint is broken.
