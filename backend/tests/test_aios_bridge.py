@@ -9,10 +9,10 @@ Covers:
 - _NoOpBridge.memory_create returns None silently
 """
 import re
+from unittest.mock import MagicMock
 from urllib.parse import urlencode
 
 import pytest
-from unittest.mock import MagicMock
 
 from app.core.aios_bridge import _NoOpBridge, reset_bridge
 
@@ -74,8 +74,9 @@ def mock_bridge():
 # ── Column presence ──────────────────────────────────────────────────────────
 
 def test_esf_snapshot_has_aios_memory_id_column(db_session):
-    from app.models.esf_snapshot import ESFSnapshot
     from sqlalchemy import inspect
+
+    from app.models.esf_snapshot import ESFSnapshot
     cols = {c.name: c for c in inspect(ESFSnapshot.__table__).columns}
     assert "aios_memory_id" in cols
     assert cols["aios_memory_id"].nullable is True
@@ -133,9 +134,10 @@ def test_aios_memory_id_saved_to_snapshot(admin, mock_bridge, db_session):
     _save(admin, uuid)
     _publish(admin, uuid)
 
+    import uuid as uuid_mod
+
     from app.models.esf_document import ESFDocument
     from app.models.esf_snapshot import ESFSnapshot
-    import uuid as uuid_mod
     doc = db_session.query(ESFDocument).filter_by(
         uuid=uuid_mod.UUID(uuid)
     ).one_or_none()
@@ -154,9 +156,10 @@ def test_memory_id_none_when_aios_returns_none(admin, mock_bridge, db_session):
     _save(admin, uuid)
     _publish(admin, uuid)
 
+    import uuid as uuid_mod
+
     from app.models.esf_document import ESFDocument
     from app.models.esf_snapshot import ESFSnapshot
-    import uuid as uuid_mod
     doc = db_session.query(ESFDocument).filter_by(
         uuid=uuid_mod.UUID(uuid)
     ).one_or_none()

@@ -41,8 +41,8 @@ from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy import event, text  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 
-from app.core import ratelimit  # noqa: E402
 import app.core.passwords as _pwd_module  # noqa: E402
+from app.core import ratelimit  # noqa: E402
 from app.db.session import engine, get_db  # noqa: E402
 from app.main import app  # noqa: E402
 from app.services.auth_service import ROLE_ADMIN, ROLE_ISSUER, AuthService  # noqa: E402

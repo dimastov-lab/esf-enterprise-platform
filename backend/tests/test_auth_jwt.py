@@ -1,9 +1,8 @@
 """Tests for Argon2id migration and /auth/token JWT endpoint."""
 import pytest
 
-from app.core.passwords import hash_password, needs_rehash, verify_password
 from app.core.jwt import create_access_token, decode_access_token
-
+from app.core.passwords import hash_password, needs_rehash, verify_password
 
 # ---------------------------------------------------------------------------
 # Argon2id hashing
@@ -56,7 +55,9 @@ class TestJWT:
 
     def test_expired_token_rejected(self):
         import datetime
+
         import jwt as pyjwt
+
         from app.core.config import settings
         past = datetime.datetime.utcnow() - datetime.timedelta(hours=2)
         token = pyjwt.encode(

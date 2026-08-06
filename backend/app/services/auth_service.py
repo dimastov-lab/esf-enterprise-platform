@@ -72,7 +72,7 @@ class AuthService:
         if user is None:
             raise ValueError(f"User {user_id} not found.")
         if user.is_admin:
-            raise ValueError(f"Admin accounts cannot be deactivated.")
+            raise ValueError("Admin accounts cannot be deactivated.")
         if not user.is_active:
             raise ValueError(f"User {user_id} is already inactive.")
         user.is_active = False

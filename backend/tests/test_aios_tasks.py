@@ -6,12 +6,11 @@ never make real HTTP calls. The suite verifies:
 - Bridge errors (exceptions) do NOT abort ESF operations.
 - AIOS_ENABLED=false (no-op bridge) leaves ESF behaviour unchanged.
 """
+from unittest.mock import MagicMock
+
 import pytest
-from unittest.mock import MagicMock, call
-from fastapi.testclient import TestClient
 
-from app.core.aios_bridge import reset_bridge, _NoOpBridge
-
+from app.core.aios_bridge import _NoOpBridge, reset_bridge
 
 # ---------------------------------------------------------------------------
 # Shared mock setup
@@ -75,8 +74,9 @@ class TestAIOSTasksLifecycle:
     def test_create_draft_saves_aios_task_id(self, admin, mock_bridge, db_session):
         uuid = self._create_doc(admin)
         if uuid:
-            from app.models import ESFDocument
             import uuid as uuid_mod
+
+            from app.models import ESFDocument
             doc = db_session.query(ESFDocument).filter_by(
                 uuid=uuid_mod.UUID(uuid)
             ).one_or_none()
@@ -105,8 +105,9 @@ class TestAIOSTasksLifecycle:
 
     def test_bridge_cancel_called_on_esf_cancel(self, admin, mock_bridge, db_session):
         """Cancelling a PUBLISHED document must call task_cancel."""
-        from app.models import ESFDocument, DocumentStatus
         import uuid as uuid_mod
+
+        from app.models import DocumentStatus, ESFDocument
         # Force a published doc via ORM (bypass full publish workflow in this unit test)
         uuid = self._create_doc(admin)
         if uuid:

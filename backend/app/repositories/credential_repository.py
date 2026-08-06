@@ -66,7 +66,6 @@ class CredentialRepository:
 
     def delete_expired(self) -> int:
         """Purge rows that are both revoked and past their expiry. Returns count deleted."""
-        now = datetime.utcnow()
         rows = (
             self.db.query(ApiCredential)
             .filter(

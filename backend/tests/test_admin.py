@@ -1,9 +1,6 @@
 """Admin route tests — user management."""
 import re
 
-import pytest
-from fastapi.testclient import TestClient
-
 from app.services.credential_service import CredentialService
 
 

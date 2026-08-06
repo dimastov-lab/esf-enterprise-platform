@@ -9,15 +9,20 @@ Covers:
 - esf_ PG credentials not affected by AIOS identity path
 - _NoOpBridge.identity_verify / async_identity_verify return None
 """
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import httpx
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi.testclient import TestClient
 
-from app.core.aios_bridge import AIOSBridgeService, AIOSTokenRejectedError, _NoOpBridge, get_bridge, reset_bridge
+from app.core.aios_bridge import (
+    AIOSBridgeService,
+    AIOSTokenRejectedError,
+    _NoOpBridge,
+    reset_bridge,
+)
 from app.core.config import settings
 from app.main import app
-
 
 # ---------------------------------------------------------------------------
 # Helpers

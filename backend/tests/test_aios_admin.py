@@ -1,6 +1,7 @@
 """Tests for GET /admin/aios (AIOS operability status page)."""
-import pytest
 from unittest.mock import MagicMock
+
+import pytest
 
 from app.core.aios_bridge import reset_bridge
 from app.core.config import settings

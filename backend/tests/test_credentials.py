@@ -8,9 +8,7 @@ Covers:
 import pytest
 from fastapi.testclient import TestClient
 
-from app.services.auth_service import ROLE_ADMIN, AuthService
 from app.services.credential_service import CredentialService, _hash_token
-
 
 # ---------------------------------------------------------------------------
 # CredentialService unit tests (db_session, no HTTP)
@@ -88,13 +86,12 @@ class TestCredentialService:
 
     def test_expired_credential_inactive(self, db_session, seed_users):
         from datetime import datetime, timedelta
+
         from app.models import User
         user = db_session.query(User).filter_by(username="t_admin").one()
         svc = CredentialService(db_session)
         cred, raw = svc.issue(user, expires_in_days=0)
         # Force expiry in the past
-        from app.repositories.credential_repository import CredentialRepository
-        repo = CredentialRepository(db_session)
         cred.expires_at = datetime.utcnow() - timedelta(seconds=1)
         db_session.commit()
         assert svc.validate(raw) is None
@@ -157,7 +154,6 @@ def _get_bearer_client(anon, username="t_admin"):
     assert resp.status_code == 200, resp.text
     token = resp.json()["access_token"]
     # Clone headers so we don't mutate the shared client
-    from fastapi.testclient import TestClient
     from app.main import app as _app
     c = TestClient(_app)
     c.headers["Authorization"] = f"Bearer {token}"
@@ -236,7 +232,6 @@ class TestCredentialEndpoints:
         raw_token = issue_resp.json()["token"]
 
         # Use the long-lived credential to authenticate another call
-        from fastapi.testclient import TestClient
         from app.main import app as _app
         api_client = TestClient(_app)
         api_client.headers["Authorization"] = f"Bearer {raw_token}"
@@ -252,7 +247,6 @@ class TestCredentialEndpoints:
         # Revoke then try to use
         client.delete(f"/auth/credentials/{cred_id}")
 
-        from fastapi.testclient import TestClient
         from app.main import app as _app
         api_client = TestClient(_app)
         api_client.headers["Authorization"] = f"Bearer {raw_token}"
