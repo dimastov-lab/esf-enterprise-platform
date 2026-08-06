@@ -117,7 +117,7 @@ class AIOSBridgeService:
     # ── Identity validation (Layer 2) ─────────────────────────────────────
 
     def identity_verify(self, user_token: str) -> Optional[dict]:
-        """Validate a user Bearer token via AIOS Identity.
+        """Validate a user Bearer token via AIOS Identity (synchronous).
 
         The AIOS SDK does not expose an identity endpoint so this call uses
         httpx directly with the *caller's* token (not the service-account
@@ -125,7 +125,7 @@ class AIOSBridgeService:
         AIOS is unreachable (ESF falls back to its own JWT path in that case).
         """
         try:
-            with httpx.Client(timeout=5.0) as client:
+            with httpx.Client(timeout=2.0) as client:
                 resp = client.get(
                     self._base + "/api/v1/identity/me",
                     headers={
@@ -141,6 +141,32 @@ class AIOSBridgeService:
                 return None
         except Exception as exc:
             logger.warning("AIOS identity_verify failed: %s", exc)
+            return None
+
+    async def async_identity_verify(self, user_token: str) -> Optional[dict]:
+        """Async variant — used by get_current_api_user to avoid blocking the threadpool.
+
+        Identical contract to identity_verify but uses httpx.AsyncClient so the
+        event loop is not blocked while waiting for AIOS. Timeout reduced to 2 s
+        to cap the blast radius from slow/unreachable AIOS instances.
+        """
+        try:
+            async with httpx.AsyncClient(timeout=2.0) as client:
+                resp = await client.get(
+                    self._base + "/api/v1/identity/me",
+                    headers={
+                        "Authorization": f"Bearer {user_token}",
+                        "Accept": "application/json",
+                    },
+                )
+                if resp.status_code == 200:
+                    return resp.json()
+                logger.warning(
+                    "AIOS async_identity_verify returned %s", resp.status_code
+                )
+                return None
+        except Exception as exc:
+            logger.warning("AIOS async_identity_verify failed: %s", exc)
             return None
 
     # ── Memory lifecycle (Layer 3) ─────────────────────────────────────────
@@ -204,6 +230,9 @@ class _NoOpBridge:
         return False
 
     def identity_verify(self, *_a, **_kw) -> None:
+        return None
+
+    async def async_identity_verify(self, *_a, **_kw) -> None:
         return None
 
     def memory_create(self, *_a, **_kw) -> None:

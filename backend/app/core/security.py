@@ -49,7 +49,7 @@ def require_admin(user: User) -> None:
         raise HTTPException(status_code=403, detail="Требуются права администратора.")
 
 
-def get_current_api_user(
+async def get_current_api_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer),
     db: Session = Depends(get_db),
 ) -> User:
@@ -91,9 +91,9 @@ def get_current_api_user(
     if _settings.AIOS_ENABLED:
         from app.core.aios_bridge import get_bridge
         try:
-            claims = get_bridge().identity_verify(raw)
+            claims = await get_bridge().async_identity_verify(raw)
         except Exception as exc:  # bridge is already fire-and-forget; guard the call site too
-            _log.warning("AIOS identity_verify raised: %s", exc)
+            _log.warning("AIOS async_identity_verify raised: %s", exc)
             claims = None
         if claims is not None:
             if not isinstance(claims, dict):
