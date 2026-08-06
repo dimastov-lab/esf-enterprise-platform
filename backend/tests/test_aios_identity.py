@@ -272,3 +272,69 @@ class TestBridgeIdentityVerifyRejection:
         with patch("app.core.aios_bridge.httpx.AsyncClient", return_value=mock_client):
             result = await bridge.async_identity_verify("some-token")
         assert result is None
+
+
+# ---------------------------------------------------------------------------
+# TD-022 — AIOS_AUTO_PROVISION
+# ---------------------------------------------------------------------------
+
+
+class TestAIOSAutoProvision:
+    """AIOS_AUTO_PROVISION=true creates a minimal ISSUER account on first auth."""
+
+    @pytest.fixture(autouse=True)
+    def _setup(self, monkeypatch, override_db, seed_users):
+        monkeypatch.setattr(settings, "AIOS_ENABLED", True)
+        monkeypatch.setattr(settings, "AIOS_AUTO_PROVISION", True)
+        yield
+        reset_bridge(None)
+
+    def _bridge_for(self, claims: dict):
+        bridge = MagicMock()
+        bridge.async_identity_verify = AsyncMock(return_value=claims)
+        reset_bridge(bridge)
+
+    def test_unknown_aios_user_is_provisioned(self, anon, db_session):
+        self._bridge_for({"sub": "aios-uuid-001", "preferred_username": "new_aios_user"})
+        c = TestClient(app)
+        c.headers["Authorization"] = "Bearer aios-token-xyz"
+        resp = c.get("/auth/credentials")
+        assert resp.status_code == 200, resp.text
+
+        from app.models.user import User
+        user = db_session.query(User).filter_by(username="new_aios_user").one_or_none()
+        assert user is not None
+        assert user.external_id == "aios-uuid-001"
+        assert user.is_admin is False
+
+    def test_second_request_uses_existing_account(self, anon, db_session):
+        """Provisioning is idempotent: second request finds the account, no duplicate."""
+        self._bridge_for({"sub": "aios-uuid-002", "preferred_username": "idempotent_user"})
+        c = TestClient(app)
+        c.headers["Authorization"] = "Bearer aios-token-xyz"
+        c.get("/auth/credentials")  # first — provisions
+        c.get("/auth/credentials")  # second — finds by username or external_id
+
+        from app.models.user import User
+        count = db_session.query(User).filter_by(external_id="aios-uuid-002").count()
+        assert count == 1
+
+    def test_auto_provision_disabled_returns_401(self, anon, monkeypatch):
+        monkeypatch.setattr(settings, "AIOS_AUTO_PROVISION", False)
+        self._bridge_for({"sub": "aios-uuid-003", "preferred_username": "should_not_provision"})
+        c = TestClient(app)
+        c.headers["Authorization"] = "Bearer aios-token-xyz"
+        resp = c.get("/auth/credentials")
+        assert resp.status_code == 401
+
+    def test_provisioned_account_cannot_login_with_password(self, anon, db_session):
+        self._bridge_for({"sub": "aios-uuid-004", "preferred_username": "no_password_user"})
+        c = TestClient(app)
+        c.headers["Authorization"] = "Bearer aios-token-xyz"
+        c.get("/auth/credentials")
+
+        from app.models.user import User
+        from app.core.passwords import verify_password
+        user = db_session.query(User).filter_by(username="no_password_user").one()
+        assert not verify_password("any-password", user.hashed_password)
+        assert not verify_password("", user.hashed_password)

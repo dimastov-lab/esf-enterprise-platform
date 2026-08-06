@@ -112,14 +112,30 @@ async def get_current_api_user(
                     detail="AIOS identity does not belong to the expected tenant",
                     headers={"WWW-Authenticate": "Bearer"},
                 )
-            aios_username = claims.get("preferred_username") or claims.get("sub")
+            aios_sub = claims.get("sub") or ""
+            aios_username = claims.get("preferred_username") or aios_sub
             if aios_username:
+                # 1. Match by username (manually created accounts)
                 user = (
                     db.query(User)
                     .filter(User.username == aios_username, User.is_active.is_(True))
                     .one_or_none()
                 )
                 if user is not None:
+                    return user
+                # 2. Match by external_id (previously auto-provisioned accounts)
+                if aios_sub:
+                    from app.repositories.user_repository import UserRepository
+                    user = UserRepository(db).get_by_external_id(aios_sub)
+                    if user is not None and user.is_active:
+                        return user
+                # 3. Auto-provision when enabled
+                if _settings.AIOS_AUTO_PROVISION and aios_sub:
+                    from app.services.auth_service import AuthService
+                    user = AuthService(db).provision_aios_user(
+                        username=aios_username, external_id=aios_sub
+                    )
+                    db.commit()
                     return user
             raise HTTPException(
                 status_code=401,

@@ -34,7 +34,7 @@ _MIN_SECRET_LEN = 32
 
 class Settings:
     PROJECT_NAME: str = "ESF Platform"
-    VERSION: str = "1.2.4"
+    VERSION: str = "1.2.6"
 
     # PostgreSQL only. Driver is psycopg2. DATABASE_URL_FILE (Docker secret) is
     # honoured when the plain env var is absent.
@@ -107,6 +107,13 @@ class Settings:
     # AIOS instance. Unset (the default) means any AIOS tenant is accepted — only
     # safe in single-tenant deployments where AIOS has no other tenants.
     AIOS_EXPECTED_TENANT_ID: str = os.getenv("AIOS_EXPECTED_TENANT_ID", "")
+    # When true, a first-time AIOS identity (no matching ESF user) is automatically
+    # provisioned as an ISSUER account keyed on the AIOS `sub` claim.
+    # Only enable in deployments where every verified AIOS identity is trusted to
+    # create ESF documents. Defaults to false (manual account linking required).
+    AIOS_AUTO_PROVISION: bool = os.getenv("AIOS_AUTO_PROVISION", "false").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
 
     @property
     def effective_aios_token(self) -> str:

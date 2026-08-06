@@ -2,6 +2,18 @@
 
 > Versions v0.0.1–v1.2.1: see `git log` or `git log --oneline`.
 
+## v1.2.6 — AIOS auto-provision (TD-022) + migration fix (2026-08-07)
+
+Closes TD-022.
+
+- **`AIOS_AUTO_PROVISION=true`**: opt-in flag that creates a minimal ISSUER `User` row on first successful AIOS identity verification (keyed on `sub` claim → `users.external_id`).
+- **3-step AIOS user lookup**: (1) by username, (2) by `external_id` (re-returning provisioned accounts), (3) auto-provision if enabled.
+- **`User.external_id`**: new nullable unique column; migration `e1f1d7a7bf24` + index.
+- **`AuthService.provision_aios_user()`**: creates account with unusable `!provisioned:…` password — password login blocked by design.
+- **`UserRepository.get_by_external_id()`**: O(1) lookup via index.
+- **Migration fix**: removed erroneous `op.drop_table('rate_limits')` that autogenerate inserted; restored table in dev DB.
+- `config.VERSION` → `"1.2.6"`. Suite: **221 tests pass**.
+
 ## v1.2.4 — Async AIOS identity + credential rate-limiting + row-lock fix + AIOS rejection (2026-08-06)
 
 Closes TD-024, TD-025, TD-026.

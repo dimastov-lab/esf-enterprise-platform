@@ -79,6 +79,31 @@ class AuthService:
         self.db.flush()
         return user
 
+    def provision_aios_user(self, username: str, external_id: str) -> User:
+        """Create a minimal ISSUER account for a first-time AIOS identity.
+
+        Called by get_current_api_user when AIOS_AUTO_PROVISION=true and the
+        AIOS-verified identity has no matching local user.  The account is keyed
+        on external_id (AIOS sub claim) so re-provisioning is idempotent.
+
+        The user cannot log in via password (hashed_password is an unusable
+        placeholder — it never matches any real password).
+        """
+        import secrets as _secrets
+        self.ensure_roles()
+        roles = {name: self.repo.ensure_role(name, desc) for name, desc in ROLES.items()}
+        user = User(
+            username=username,
+            hashed_password="!provisioned:" + _secrets.token_hex(16),
+            external_id=external_id,
+            is_admin=False,
+            is_active=True,
+        )
+        user.roles.append(roles[ROLE_ISSUER])
+        self.db.add(user)
+        self.db.flush()
+        return user
+
     def ensure_dev_admin(self) -> None:
         """Dev convenience: guarantee roles exist and at least one admin (admin/admin123)."""
         self.ensure_roles()
