@@ -81,7 +81,7 @@ def run(root: Path) -> int:
         )
         return 1
 
-    print(f"OK: no AIOS Core private imports found in {len(py_files)} files.")
+    print(f"OK: no AIOS Core private imports found in {len(py_files):,} files.")
     return 0
 
 
