@@ -348,3 +348,71 @@ class TestCredentialRateLimit:
         clear_all()
         result = throttle_api("test-ip")
         assert isinstance(result, bool)
+
+
+# ---------------------------------------------------------------------------
+# scripts/issue_credential.py  CLI tests
+# ---------------------------------------------------------------------------
+
+
+class TestIssueCredentialScript:
+    """Tests for the issue_credential CLI script.
+
+    main() uses SessionLocal() internally; we patch it to inject db_session
+    so the script runs inside the test's SAVEPOINT transaction.
+    """
+
+    def _run(self, argv: list, db_session, capsys):
+        """Call script main() with patched SessionLocal and sys.argv."""
+        import sys
+        from unittest.mock import MagicMock, patch
+
+        import scripts.issue_credential as script
+
+        mock_session_local = MagicMock(return_value=db_session)
+        with patch.object(script, "SessionLocal", mock_session_local):
+            with patch.object(sys, "argv", ["issue_credential.py"] + argv):
+                script.main()
+        return capsys.readouterr()
+
+    def test_issues_token_with_esf_prefix(self, db_session, seed_users, capsys):
+        out = self._run(["t_admin"], db_session, capsys)
+        assert out.out.strip().startswith("esf_")
+
+    def test_label_is_stored(self, db_session, seed_users, capsys):
+        out = self._run(["t_admin", "--label", "CI pipeline"], db_session, capsys)
+        token = out.out.strip()
+        from app.services.credential_service import CredentialService
+        cred = CredentialService(db_session).validate(token)
+        assert cred is not None
+        assert cred.label == "CI pipeline"
+
+    def test_expires_in_days_sets_expiry(self, db_session, seed_users, capsys):
+        out = self._run(["t_admin", "--expires-in-days", "30"], db_session, capsys)
+        token = out.out.strip()
+        from app.services.credential_service import CredentialService
+        cred = CredentialService(db_session).validate(token)
+        assert cred is not None
+        assert cred.expires_at is not None
+        assert "never" not in out.err
+
+    def test_no_expiry_by_default(self, db_session, seed_users, capsys):
+        out = self._run(["t_admin"], db_session, capsys)
+        token = out.out.strip()
+        from app.services.credential_service import CredentialService
+        cred = CredentialService(db_session).validate(token)
+        assert cred is not None
+        assert cred.expires_at is None
+        assert "never" in out.err
+
+    def test_unknown_user_exits_with_error(self, db_session, seed_users, capsys):
+        with pytest.raises(SystemExit) as exc:
+            self._run(["no_such_user"], db_session, capsys)
+        assert exc.value.code != 0
+
+    def test_exceeds_max_ttl_exits_with_error(self, db_session, seed_users, capsys):
+        from app.services.credential_service import MAX_TTL_DAYS
+        with pytest.raises(SystemExit) as exc:
+            self._run(["t_admin", "--expires-in-days", str(MAX_TTL_DAYS + 1)],
+                      db_session, capsys)
+        assert exc.value.code != 0

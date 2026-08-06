@@ -4,7 +4,6 @@
 
 ## Remaining code-side work (v1.3 horizon, low priority)
 
-- **ESF-AUTH01-001** (Low) — `--expires-in-days` flag for `esf_` credential issue CLI
 - **ESF-TD022-001** (Low) — `AIOS_AUTO_PROVISION=true`; deferred until multi-tenant scope defined
 
 ## Blocked on owner action
