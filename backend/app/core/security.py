@@ -89,10 +89,16 @@ async def get_current_api_user(
     # locally-issued tokens continue to work even when AIOS is down.
     from app.core.config import settings as _settings
     if _settings.AIOS_ENABLED:
-        from app.core.aios_bridge import get_bridge
+        from app.core.aios_bridge import AIOSTokenRejectedError, get_bridge
         try:
             claims = await get_bridge().async_identity_verify(raw)
-        except Exception as exc:  # bridge is already fire-and-forget; guard the call site too
+        except AIOSTokenRejectedError as exc:
+            raise HTTPException(
+                status_code=401,
+                detail=f"AIOS identity service rejected this token (HTTP {exc.status_code})",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        except Exception as exc:
             _log.warning("AIOS async_identity_verify raised: %s", exc)
             claims = None
         if claims is not None:
@@ -120,8 +126,8 @@ async def get_current_api_user(
                 detail="AIOS identity verified but no matching ESF user",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        # claims is None: AIOS unavailable or token not recognized by AIOS.
-        # Fall through to ESF JWT so local tokens keep working.
+        # claims is None: AIOS unreachable (network error / 5xx).
+        # Fall through to ESF JWT for graceful degradation when AIOS is down.
 
     from app.core.jwt import decode_access_token
     try:

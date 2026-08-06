@@ -73,15 +73,22 @@
       then `docker compose -f docker-compose.prod.yml --env-file .env.production up -d`
     - Owner-only blocker: I-1 (real domain + TLS cert from ACTION_REQUIRED.md)
 
-30. v1.2.4 — async AIOS identity + credential rate-limiting (2026-08-06):
+30. v1.2.4 — async AIOS identity + credential rate-limiting (TD-024/026, 2026-08-06):
     - TD-024: `get_current_api_user` → `async def`; `httpx.AsyncClient` (2 s timeout)
       replaces blocking sync call; `throttle_api()` (20 req/60 s/IP) on all
-      `/auth/credentials` endpoints; 200 tests pass
+      `/auth/credentials` endpoints
+    - TD-026: `memory_create()` moved post-`repo.commit()` in `publish()`; ORM +
+      DB-level immutability guards (migration `a2b3c4d5e6f7`) narrowed to payload
+      fields only — `aios_memory_id` may be written in a post-commit UPDATE
+    - TD-025: `AIOSTokenRejectedError` wired into `get_current_api_user`; AIOS 4xx
+      raises HTTP 401 immediately — no ESF JWT fallback on explicit rejection;
+      graceful degradation (5xx/network → JWT fallback) preserved
+    - 211 tests pass
 
 Status: **v1.2.4** — AIOS convergence + operability + SDK adoption + credential security
-+ async identity fix complete. Compose stack ready for v1.2.3 deploy. Remaining work is
-owner-only P0 (ACTION_REQUIRED.md: I-1 TLS/domain, I-2 secret rotation) and the
-deliberately out-of-scope items below.
++ async identity fix + snapshot immutability scoped. Compose stack ready for v1.2.3
+deploy. Remaining work is owner-only P0 (ACTION_REQUIRED.md: I-1 TLS/domain, I-2
+secret rotation) and the deliberately out-of-scope items below.
 
 Out of scope (require external systems): ГНС/tax-authority integration,
 ЭЦП/digital signature, legal validity.

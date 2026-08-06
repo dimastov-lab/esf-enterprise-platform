@@ -181,8 +181,18 @@ TD-024 closed. Suite: **200 tests pass** (2026-08-06).
 
 TD-026 fix (same release): `memory_create()` moved AFTER `self.repo.commit()` in
 `publish()` — row lock is released before the 5 s AIOS HTTP call. `ESFSnapshot`
-immutability guard narrowed to payload fields only (`payload_json`, `sha256`,
-`immutable`); `aios_memory_id` written in a post-commit UPDATE.
-`config.VERSION = "1.2.4"`. TD-026 closed.
+ORM guard narrowed to payload fields only (`payload_json`, `sha256`, `immutable`);
+`aios_memory_id` written in a post-commit UPDATE. Alembic migration
+`a2b3c4d5e6f7` narrows the matching DB-level PL/pgSQL trigger to the same
+field set — without it, the post-commit UPDATE would be rejected by the DB in
+production. TD-026 closed.
+
+TD-025 closed (same release): `AIOSTokenRejectedError` wired into
+`get_current_api_user` — 4xx responses raise HTTP 401 immediately, no ESF JWT
+fallback. 5xx/network errors still return `None` so graceful degradation is
+preserved when AIOS is down. 1 new integration test
+(`test_aios_explicit_rejection_blocks_esf_jwt_fallback`). TD-025 resolved.
+
+`config.VERSION = "1.2.4"`. Suite: **211 tests pass** (2026-08-06).
 
 Awaiting direction.

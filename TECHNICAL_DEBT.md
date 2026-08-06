@@ -330,7 +330,12 @@
 - **Fix Plan:** If strict revocation is required, remove the JWT fallback path when
   `AIOS_ENABLED=true`. The design accepted this tradeoff deliberately (graceful degradation
   when AIOS is down); strict revocation and graceful degradation are mutually exclusive.
-- **Status:** Open. Accepted design tradeoff of the hybrid approach.
+- **Status:** ✅ RESOLVED (v1.2.4, 2026-08-06) — `AIOSTokenRejectedError` added to
+  `aios_bridge.py`; `identity_verify` and `async_identity_verify` raise it on 4xx
+  responses (AIOS explicitly rejected the token) and return `None` for 5xx / network
+  errors (AIOS unreachable). `get_current_api_user` catches `AIOSTokenRejectedError`
+  before the generic handler and raises HTTP 401 immediately — no ESF JWT fallback.
+  Graceful degradation (AIOS down → ESF JWT still works) is preserved. 9 new tests.
 
 ## TD-026 — AIOS publish: memory_create inside open row lock
 

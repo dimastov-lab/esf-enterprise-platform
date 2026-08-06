@@ -176,6 +176,24 @@ class TestAIOSIdentityEnabled:
         resp = c.get("/auth/credentials")
         assert resp.status_code == 401
 
+    def test_aios_explicit_rejection_blocks_esf_jwt_fallback(
+        self, anon, override_db, seed_users
+    ):
+        """AIOS 4xx → AIOSTokenRejectedError → HTTP 401; valid ESF JWT is NOT tried."""
+        from app.core.aios_bridge import AIOSTokenRejectedError
+        spy = MagicMock()
+        spy.async_identity_verify = AsyncMock(
+            side_effect=AIOSTokenRejectedError(401)
+        )
+        reset_bridge(spy)
+        # Issue a fully valid ESF JWT — fallback would succeed if allowed
+        token = _jwt_for(anon)
+        c = TestClient(app)
+        c.headers["Authorization"] = f"Bearer {token}"
+        resp = c.get("/auth/credentials")
+        assert resp.status_code == 401
+        assert "AIOS" in resp.json().get("detail", "")
+
 
 # ---------------------------------------------------------------------------
 # AIOSBridgeService.identity_verify — unit tests for 4xx distinction
