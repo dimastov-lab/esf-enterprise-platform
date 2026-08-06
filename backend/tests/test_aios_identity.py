@@ -333,8 +333,8 @@ class TestAIOSAutoProvision:
         c.headers["Authorization"] = "Bearer aios-token-xyz"
         c.get("/auth/credentials")
 
-        from app.models.user import User
         from app.core.passwords import verify_password
+        from app.models.user import User
         user = db_session.query(User).filter_by(username="no_password_user").one()
         assert not verify_password("any-password", user.hashed_password)
         assert not verify_password("", user.hashed_password)
