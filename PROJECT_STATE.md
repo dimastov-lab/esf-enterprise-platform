@@ -179,4 +179,10 @@ rate-limiter (20 req/60 s/IP, shared Postgres bucket `api:`) applied to
 POST/GET/DELETE `/auth/credentials`. `_NoOpBridge.async_identity_verify` stub added.
 TD-024 closed. Suite: **200 tests pass** (2026-08-06).
 
+TD-026 fix (same release): `memory_create()` moved AFTER `self.repo.commit()` in
+`publish()` — row lock is released before the 5 s AIOS HTTP call. `ESFSnapshot`
+immutability guard narrowed to payload fields only (`payload_json`, `sha256`,
+`immutable`); `aios_memory_id` written in a post-commit UPDATE.
+`config.VERSION = "1.2.4"`. TD-026 closed.
+
 Awaiting direction.
