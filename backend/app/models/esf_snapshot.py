@@ -10,6 +10,7 @@ from typing import Optional
 from sqlalchemy import Boolean, DateTime, ForeignKey, String, event, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm.attributes import get_history as _get_attr_history
 
 from app.db.base import Base
 
@@ -41,9 +42,21 @@ class SnapshotImmutableError(Exception):
     """Raised when code attempts to modify or delete a frozen snapshot."""
 
 
+# These fields form the immutable business payload and must never change after INSERT.
+# Post-commit link fields (e.g. aios_memory_id) are intentionally excluded so they
+# can be written in a second commit after the row lock is released (TD-026 fix).
+_PAYLOAD_FIELDS = frozenset({"payload_json", "sha256", "immutable"})
+
+
 @event.listens_for(ESFSnapshot, "before_update")
 def _block_snapshot_update(mapper, connection, target):  # noqa: ANN001
-    raise SnapshotImmutableError("ESFSnapshot is immutable and cannot be updated.")
+    changed = {
+        key
+        for key in _PAYLOAD_FIELDS
+        if _get_attr_history(target, key).has_changes()
+    }
+    if changed:
+        raise SnapshotImmutableError("ESFSnapshot is immutable and cannot be updated.")
 
 
 @event.listens_for(ESFSnapshot, "before_delete")

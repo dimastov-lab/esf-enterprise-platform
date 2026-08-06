@@ -110,7 +110,8 @@ def logout(request: Request, db: Session = Depends(get_db)):
 # ── Long-lived API credentials (PG-backed) ──────────────────────────────────
 
 @router.post("/auth/credentials")
-def issue_credential(
+async def issue_credential(
+    request: Request,
     label: Optional[str] = Form(None),
     expires_in_days: Optional[int] = Form(None),
     user: User = Depends(get_current_api_user),
@@ -124,6 +125,8 @@ def issue_credential(
     - ``label`` — optional human-readable name (e.g. "CI pipeline").
     - ``expires_in_days`` — TTL in days; omit for a non-expiring credential.
     """
+    if ratelimit.throttle_api(client_ip(request)):
+        raise HTTPException(status_code=429, detail="Too many requests. Try again later.")
     try:
         cred, raw_token = CredentialService(db).issue(
             user, label=label, expires_in_days=expires_in_days
@@ -145,11 +148,14 @@ def issue_credential(
 
 
 @router.get("/auth/credentials")
-def list_credentials(
+async def list_credentials(
+    request: Request,
     user: User = Depends(get_current_api_user),
     db: Session = Depends(get_db),
 ):
     """List API credentials for the authenticated user (no raw tokens)."""
+    if ratelimit.throttle_api(client_ip(request)):
+        raise HTTPException(status_code=429, detail="Too many requests. Try again later.")
     creds = CredentialService(db).list_for_user(user)
     return [
         {
@@ -166,12 +172,15 @@ def list_credentials(
 
 
 @router.delete("/auth/credentials/{credential_id}")
-def revoke_credential(
+async def revoke_credential(
     credential_id: int,
+    request: Request,
     user: User = Depends(get_current_api_user),
     db: Session = Depends(get_db),
 ):
     """Revoke an API credential by id. Idempotent — returns 404 when not found."""
+    if ratelimit.throttle_api(client_ip(request)):
+        raise HTTPException(status_code=429, detail="Too many requests. Try again later.")
     ok = CredentialService(db).revoke(credential_id, user)
     if not ok:
         raise HTTPException(status_code=404, detail="Credential not found or already revoked.")

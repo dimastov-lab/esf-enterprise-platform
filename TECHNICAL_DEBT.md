@@ -313,7 +313,10 @@
 - **Risk:** ~50 concurrent invalid tokens saturate the threadpool, stalling the whole app.
 - **Fix Plan:** Apply the existing rate-limiter to `GET /auth/credentials`; reduce AIOS
   `timeout` to 2s; consider an async httpx client for Layer 2 calls.
-- **Status:** Open. Acceptable for current load profile.
+- **Status:** ✅ RESOLVED (v1.2.4). `get_current_api_user` is now `async def` and calls
+  `await async_identity_verify` (httpx.AsyncClient, timeout=2 s) — no threadpool
+  blocking. `throttle_api()` added (20 req/60 s/IP, shared Postgres store); applied
+  to POST/GET/DELETE `/auth/credentials`. 200 tests pass.
 
 ## TD-025 — AIOS Layer 2: hybrid fallback defeats central revocation
 
@@ -341,7 +344,10 @@
 - **Fix Plan:** Move the `memory_create` call to after `self.repo.commit()`, storing
   `aios_memory_id` in a post-commit UPDATE (which requires relaxing the snapshot immutability
   guard for `aios_memory_id` specifically).
-- **Status:** Open. The current ordering is required for immutability correctness.
+- **Status:** RESOLVED (v1.2.4). `memory_create` moved after `self.repo.commit()` (row lock
+  released). `ESFSnapshot._block_snapshot_update` now checks only payload fields
+  (`payload_json`, `sha256`, `immutable`); `aios_memory_id` is a post-commit link annotation
+  and may be written in a separate UPDATE. 200 tests pass.
 
 ## TD-027 — API credentials: no maximum TTL, dead revoke_all_for_user
 

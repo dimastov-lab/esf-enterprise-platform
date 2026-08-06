@@ -1,5 +1,25 @@
 # CHANGELOG.md
 
+## v1.2.4 — Async AIOS identity + credential rate-limiting + row-lock fix (2026-08-06)
+
+Closes TD-024, TD-026.
+
+- **Async identity verify**: `get_current_api_user` is now `async def`; Layer 2 AIOS
+  call uses `httpx.AsyncClient` with 2 s timeout (was sync `httpx.Client` with 5 s
+  running in the Starlette threadpool — ~50 concurrent invalid tokens saturated it).
+  Sync `identity_verify` timeout also reduced 5 s → 2 s.
+- **`_NoOpBridge.async_identity_verify`**: async no-op stub for the disabled-AIOS path.
+- **`throttle_api()`**: new rate-limit family in `ratelimit.py` (prefix `api:`, 20 req / 60 s / IP,
+  shared Postgres store). Applied to `POST`, `GET`, `DELETE /auth/credentials`; returns 429.
+- Tests: updated `test_aios_identity.py` to mock `async_identity_verify` via `AsyncMock`;
+  added `TestCredentialRateLimit` (4 tests).
+- **TD-026 row-lock fix**: `memory_create()` moved after `self.repo.commit()` in
+  `publish()` — row lock is released before the AIOS HTTP call. `ESFSnapshot`
+  immutability guard narrowed to payload fields (`payload_json`, `sha256`, `immutable`);
+  `aios_memory_id` is written in a separate post-commit UPDATE.
+- `config.VERSION` → `"1.2.4"`.
+- Suite: **200 tests pass**.
+
 ## ESF-RUNTIME-001 — Production deploy prep (2026-08-06)
 
 - `docker-compose.prod.yml`: image tag `esf-platform:1.1.6` → `esf-platform:1.2.3`

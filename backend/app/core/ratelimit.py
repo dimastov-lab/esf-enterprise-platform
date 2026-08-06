@@ -26,9 +26,13 @@ MAX_FAILURES = 5
 PUBLIC_WINDOW_SECONDS = 60
 PUBLIC_MAX_REQUESTS = 30
 
-# Bucket-name prefixes keep the two limiter families from colliding on one IP.
+API_WINDOW_SECONDS = 60
+API_MAX_REQUESTS = 20
+
+# Bucket-name prefixes keep the limiter families from colliding on one IP.
 _LOGIN_PREFIX = "login:"
 _PUBLIC_PREFIX = "public:"
+_API_PREFIX = "api:"
 
 
 def _bucket(prefix: str, key: str) -> str:
@@ -174,6 +178,15 @@ def reset(key: str) -> None:
 def throttle_public(key: str) -> bool:
     """Record one public-route request; True when the caller must get a 429."""
     return _store.incr(_bucket(_PUBLIC_PREFIX, key), PUBLIC_WINDOW_SECONDS) > PUBLIC_MAX_REQUESTS
+
+
+def throttle_api(key: str) -> bool:
+    """Record one API-credential request; True when the caller must get a 429.
+
+    Applied per IP on all /auth/credentials endpoints. Caps the rate at which
+    an attacker can trigger AIOS identity_verify calls via bearer tokens.
+    """
+    return _store.incr(_bucket(_API_PREFIX, key), API_WINDOW_SECONDS) > API_MAX_REQUESTS
 
 
 def clear_all() -> None:

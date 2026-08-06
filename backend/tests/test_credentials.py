@@ -313,3 +313,44 @@ class TestCredentialRoutes:
         )
         assert row is not None
         assert row.meta_json.get("credential_id") == cred_id
+
+
+# ---------------------------------------------------------------------------
+# Rate-limiting on /auth/credentials
+# ---------------------------------------------------------------------------
+
+class TestCredentialRateLimit:
+    """Per-IP 429 guard on credential endpoints (TD-024)."""
+
+    def test_post_credentials_returns_429_when_rate_limited(
+        self, anon, override_db, seed_users, monkeypatch
+    ):
+        import app.core.ratelimit as rl
+        monkeypatch.setattr(rl, "throttle_api", lambda _k: True)
+        client, _ = _get_bearer_client(anon)
+        resp = client.post("/auth/credentials")
+        assert resp.status_code == 429
+
+    def test_get_credentials_returns_429_when_rate_limited(
+        self, anon, override_db, seed_users, monkeypatch
+    ):
+        import app.core.ratelimit as rl
+        monkeypatch.setattr(rl, "throttle_api", lambda _k: True)
+        client, _ = _get_bearer_client(anon)
+        resp = client.get("/auth/credentials")
+        assert resp.status_code == 429
+
+    def test_delete_credential_returns_429_when_rate_limited(
+        self, anon, override_db, seed_users, monkeypatch
+    ):
+        import app.core.ratelimit as rl
+        monkeypatch.setattr(rl, "throttle_api", lambda _k: True)
+        client, _ = _get_bearer_client(anon)
+        resp = client.delete("/auth/credentials/1")
+        assert resp.status_code == 429
+
+    def test_throttle_api_function_exists_and_returns_bool(self):
+        from app.core.ratelimit import clear_all, throttle_api
+        clear_all()
+        result = throttle_api("test-ip")
+        assert isinstance(result, bool)

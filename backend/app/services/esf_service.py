@@ -492,18 +492,12 @@ class ESFService:
             self.ensure_qr(doc, commit=False)               # 3. generate QR (no early commit)
             payload = self.serialize(doc)                   # 4. immutable snapshot...
             snapshot = snapshot_service.make_snapshot(doc, payload)
-            # Layer 3: write to AIOS Memories BEFORE commit so aios_memory_id
-            # is part of the INSERT (snapshot is immutable after commit).
-            try:
-                mem_id = get_bridge().memory_create(
-                    str(snapshot.uuid), snapshot.sha256, payload
-                )
-                if mem_id:
-                    snapshot.aios_memory_id = mem_id
-            except Exception as exc:
-                _log.warning("AIOS memory_create failed for doc %s: %s", doc.id, exc)
+            # Capture identity fields before commit (uuid is Python-assigned, sha256
+            # is computed here; both expire from the ORM cache after commit).
+            snapshot_uuid = str(snapshot.uuid)
+            snapshot_sha256 = snapshot.sha256
             self.repo.add_pending(snapshot)
-            self.repo.commit()                              # 7. commit once
+            self.repo.commit()                              # 7. commit — releases row lock
         except IntegrityError:
             # e.g. an esf_number collision that slipped past the guard — surface a
             # clean 409 (retryable) instead of an opaque 500.
@@ -516,6 +510,18 @@ class ESFService:
             self.repo.rollback()                              # no partial publication
             raise
         self.repo.refresh(doc)
+
+        # Layer 3: write to AIOS Memories AFTER commit — row lock already released
+        # (TD-026 fix). The immutability guard allows aios_memory_id to be set in a
+        # post-commit UPDATE because it is not in _PAYLOAD_FIELDS.
+        try:
+            mem_id = get_bridge().memory_create(snapshot_uuid, snapshot_sha256, payload)
+            if mem_id:
+                snapshot.aios_memory_id = mem_id
+                self.repo.commit()
+        except Exception as exc:
+            _log.warning("AIOS memory_create failed for doc %s: %s", doc.id, exc)
+
         try:
             get_bridge().task_escalate(doc.aios_task_id)
             get_bridge().task_complete(doc.aios_task_id)
