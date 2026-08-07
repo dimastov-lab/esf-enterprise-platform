@@ -176,6 +176,12 @@ class Settings:
                     "URL; plaintext HTTP would expose them on the network. "
                     f"Current value: {aios_url!r}"
                 )
+            if not (self.AIOS_EXPECTED_TENANT_ID or "").strip():
+                raise RuntimeError(
+                    "AIOS_EXPECTED_TENANT_ID must be set when AIOS_ENABLED=true "
+                    "and ENVIRONMENT is production. Without it any AIOS tenant's "
+                    "JWT is accepted. Set it to your AIOS tenant identifier."
+                )
 
 
 settings = Settings()

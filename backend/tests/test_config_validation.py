@@ -12,6 +12,7 @@ def _prod_settings(**overrides) -> Settings:
     s.PUBLIC_BASE_URL = "https://esf.example.com"
     s.AIOS_ENABLED = False
     s.AIOS_BASE_URL = "https://localhost:8100"
+    s.AIOS_EXPECTED_TENANT_ID = ""
     for k, v in overrides.items():
         setattr(s, k, v)
     return s
@@ -24,7 +25,11 @@ def test_aios_http_url_rejected_in_production():
 
 
 def test_aios_https_url_accepted_in_production():
-    s = _prod_settings(AIOS_ENABLED=True, AIOS_BASE_URL="https://aios.internal")
+    s = _prod_settings(
+        AIOS_ENABLED=True,
+        AIOS_BASE_URL="https://aios.internal",
+        AIOS_EXPECTED_TENANT_ID="my-tenant",
+    )
     s.validate_for_runtime()  # must not raise
 
 
@@ -37,3 +42,28 @@ def test_aios_http_url_allowed_in_development():
 def test_aios_http_url_allowed_when_aios_disabled():
     s = _prod_settings(AIOS_ENABLED=False, AIOS_BASE_URL="http://localhost:8100")
     s.validate_for_runtime()  # AIOS disabled — check must not fire
+
+
+def test_aios_empty_tenant_id_rejected_in_production():
+    s = _prod_settings(
+        AIOS_ENABLED=True,
+        AIOS_BASE_URL="https://aios.internal",
+        AIOS_EXPECTED_TENANT_ID="",
+    )
+    with pytest.raises(RuntimeError, match="AIOS_EXPECTED_TENANT_ID"):
+        s.validate_for_runtime()
+
+
+def test_aios_blank_tenant_id_rejected_in_production():
+    s = _prod_settings(
+        AIOS_ENABLED=True,
+        AIOS_BASE_URL="https://aios.internal",
+        AIOS_EXPECTED_TENANT_ID="   ",
+    )
+    with pytest.raises(RuntimeError, match="AIOS_EXPECTED_TENANT_ID"):
+        s.validate_for_runtime()
+
+
+def test_aios_tenant_id_not_required_when_aios_disabled():
+    s = _prod_settings(AIOS_ENABLED=False, AIOS_EXPECTED_TENANT_ID="")
+    s.validate_for_runtime()  # disabled — check must not fire
