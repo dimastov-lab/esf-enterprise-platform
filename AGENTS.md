@@ -24,5 +24,5 @@ AIOS: gated on `AIOS_ENABLED=true`, all paths no-op when disabled.
 
 ## Current state
 
-v1.2.4, 211 tests, one open item: TD-022 (AIOS auto-provision, deferred).
+v1.2.6, 221 tests, no open code items. AIOS convergence complete (Layers 1/2/3).
 Source of truth: PROJECT_STATE.md and TECHNICAL_DEBT.md.

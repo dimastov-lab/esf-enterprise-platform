@@ -430,3 +430,23 @@ html { height: 100%; }
 @media print {
   .demo-watermark { color: rgba(200, 30, 30, 0.16); }
 }
+
+/* ---- Public verification disclaimer (mode=public only) -----------------
+   Shown above the document canvas on the open /esf/check-esf page.
+   Intentionally visible and not suppressable — legal notice. */
+.pub-disclaimer {
+  background: #fffbe6;
+  border: 1px solid #faad14;
+  border-left: 4px solid #faad14;
+  color: #7a5f00;
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 10px 16px;
+  margin: 0 auto 12px;
+  max-width: 1050px;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+@media print {
+  .pub-disclaimer { display: none; }
+}

@@ -7,8 +7,8 @@ immutable snapshot with a QR-linked public verification page.
 
 ## Status
 
-**v1.1.6** — MVP feature-complete; the production-hardening backlog is closed and the
-technical-debt register has zero open code items (see CHANGELOG.md). Lifecycle:
+**v1.2.6** — MVP feature-complete, AIOS convergence complete (Layers 1/2/3), all
+security and architecture debt resolved (see CHANGELOG.md). Lifecycle:
 **DRAFT → VALIDATED → SNAPSHOT_CREATED → PUBLISHED** (+ CANCELLED).
 
 ## Architecture
@@ -111,8 +111,9 @@ Validate a running stack with `scripts/prod_smoke_test.sh`. See `docs/history/PR
 5. In production the dev admin is NOT seeded — create the first admin out-of-band
    (e.g. a one-off `AuthService(...).create_user(...)` script or `scripts/create_admin.py`).
 
-The production-hardening backlog (CSRF, rate limiting, audit log, shared-store limiter) is
-complete as of v1.1.5 — see CHANGELOG.md; historical reports live in `docs/history/`.
+The production-hardening backlog (CSRF, rate limiting, audit log, shared-store limiter,
+security headers, CSP nonce, hash-pinned deps, DB-level immutability triggers) is
+complete — see CHANGELOG.md; historical reports live in `docs/history/`.
 
 ## Backup & Restore
 
@@ -153,7 +154,7 @@ Visual spec: `docs/UI_REFERENCE.md`; analysis: `docs/STEP0_ARCHITECTURE_REVIEW.m
 ## Known limitations (see `TECHNICAL_DEBT.md`)
 
 Form fidelity is glyph-exact (DejaVu Sans, matched to the reference). The technical-debt
-register has **zero open code items** as of v1.1.6 — login + public-route rate limiting use a
+register has **zero open code items** as of v1.2.6 — login + public-route rate limiting use a
 shared Postgres-backed store (multi-worker-safe), and the macOS dyld path injection is a
 dev-only convenience (n/a on Linux/Docker). The legacy `dev` user row is retained by design
 (owns early documents; cannot authenticate). Out of scope (require external systems):
