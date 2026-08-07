@@ -1,6 +1,6 @@
 # PROJECT_STATE.md
 
-**Version:** v1.2.6 | **Tests:** 221 pass | **Alembic head:** `e1f1d7a7bf24`
+**Version:** v1.2.6 | **Tests:** 267 pass | **Alembic head:** `e1f1d7a7bf24`
 
 **Status:** Production-ready. Locally verified 2026-08-07 (self-signed cert, 3 containers healthy).
 AIOS convergence complete (Layers 1/2/3 + AUTH-01 + operability + async identity + credential security + auto-provision).
