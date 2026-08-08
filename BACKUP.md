@@ -1,5 +1,10 @@
 # BACKUP.md — ESF Enterprise Platform
 
+Canonical production roots are pinned in `docker-compose.prod.yml`:
+`esf-enterprise-clean-starter_pg_data` for PostgreSQL and
+`esf-enterprise-clean-starter_esf_storage` for generated QR files. See
+`docs/WAVE0_DATA_ROOT.md` for the accepted snapshot and quarantine evidence.
+
 ```bash
 DC="docker compose -f docker-compose.prod.yml --env-file .env.production"
 ```
@@ -54,12 +59,12 @@ automatically and identically.
 
 ## QR backup (optional)
 ```bash
-docker run --rm -v esf_storage:/data -v "$PWD/backups:/out" alpine \
+docker run --rm -v esf-enterprise-clean-starter_esf_storage:/data -v "$PWD/backups:/out" alpine \
   tar czf /out/qr_$(date +%F).tgz -C /data .
 ```
 Restore:
 ```bash
-docker run --rm -v esf_storage:/data -v "$PWD/backups:/in" alpine \
+docker run --rm -v esf-enterprise-clean-starter_esf_storage:/data -v "$PWD/backups:/in" alpine \
   sh -c "cd /data && tar xzf /in/qr_YYYY-MM-DD.tgz"
 ```
 (If you skip this, QR images are recreated on next request/publish from the document data.)
