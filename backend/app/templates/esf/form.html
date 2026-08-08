@@ -211,6 +211,13 @@
 </div>
 {%- endif %}
 
+{%- if mode == 'public' %}
+<div class="pub-disclaimer" role="note" aria-label="Уведомление о статусе документа">
+  ⚠ Этот документ выпущен на демонстрационной платформе и <strong>не имеет юридической силы</strong>.
+  Он не является официальным налоговым документом, не зарегистрирован в ГНС Кыргызской Республики
+  и не может использоваться в правовых или налоговых целях.
+</div>
+{%- endif %}
 {%- if mode in ['view', 'public'] %}<div class="viewer-stage" id="viewer-stage"><div class="viewer-fit" id="viewer-fit"><div class="viewer-page" id="viewer-page">{% endif %}
 {%- if mode == 'edit' %}<div class="edit-fit" id="edit-fit"><div class="edit-page" id="edit-page">{% endif %}
 <div class="esf-doc">
