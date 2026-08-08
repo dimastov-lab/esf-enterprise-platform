@@ -7,7 +7,6 @@ from fastapi import HTTPException
 from app.models import DocumentStatus
 from app.services.esf_query_service import ESFQueryService
 
-
 # ---- fixtures / helpers -----------------------------------------------
 
 def _make_svc():

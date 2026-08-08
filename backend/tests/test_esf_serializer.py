@@ -13,7 +13,6 @@ from app.services.esf_serializer import (
     _rate,
 )
 
-
 # ---- private formatting helpers ----------------------------------------
 
 def test_date_box_formats_ddmmyyyy():
