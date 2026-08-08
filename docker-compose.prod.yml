@@ -1,3 +1,5 @@
+name: esf-enterprise-clean-starter
+
 # Production stack for the ESF Enterprise Platform.
 #   docker compose -f docker-compose.prod.yml --env-file .env.production up -d --build
 # Provide TLS certs at infra/nginx/certs/{fullchain.pem,privkey.pem} (see INSTALL.md).
@@ -106,4 +108,6 @@ services:
 
 volumes:
   pg_data:
+    name: esf-enterprise-clean-starter_pg_data
   esf_storage:
+    name: esf-enterprise-clean-starter_esf_storage

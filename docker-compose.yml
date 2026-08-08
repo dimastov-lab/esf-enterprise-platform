@@ -10,13 +10,12 @@ services:
       # Loopback only — the dev DB (trivial esf/esf creds) must not be reachable
       # off-host. Use 127.0.0.1 so it is bound to localhost, not 0.0.0.0.
       - "127.0.0.1:5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+    # Development data is deliberately ephemeral. Production state is only in
+    # the explicitly named roots from docker-compose.prod.yml.
+    tmpfs:
+      - /var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U esf -d esf"]
       interval: 5s
       timeout: 5s
       retries: 5
-
-volumes:
-  postgres_data:
